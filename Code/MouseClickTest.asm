@@ -16,7 +16,7 @@ INCLUDE Irvine32.inc
 main PROC
 	invoke GetStdHandle, STD_INPUT_HANDLE		; Get a handle to std_input
 	mov rHnd, eax								;						02h                    10h                    80h
-	invoke SetConsoleMode, rHnd, 92h			; 92h comes from (ENA	. These values are declared in Windows.h but for whatever reason, the SmallWin.inc included in the Irvine32.inc does not have them.
+	invoke SetConsoleMode, rHnd, 92h			; 92h comes from (ENABLE_LINE_INPUT OR ENABLE_MOUSE_INPUT OR ENABLE_EXTENDED_FLAGS. These values are declared in Windows.h but for whatever reason, the SmallWin.inc included in the Irvine32.inc does not have them.
 appContinue:
 	invoke GetNumberOfConsoleInputEvents, rHnd, OFFSET numEventsOccurred		; Gets the number of mouse/input events held in the buffer
 	cmp numEventsOccurred, 0													; If there were no events raised, we dont need to do anything
