@@ -33,18 +33,18 @@ mines = 10
 	CountArray db 81 DUP(0)
 	MineLocations db 10 DUP(?) 
 	SpaceCount db 0
+	currentY BYTE ?
+
 .code
 main PROC
 	call Randomize				; So we can get random numbers for mine location generation
-	STARTX = 45					; The X coordinate of the top left corner of the board
-	STARTY = 7					; The Y coordinate of the top left corner of the board
+	STARTX = 30					; The X coordinate of the top left corner of the board
+	STARTY = 6					; The Y coordinate of the top left corner of the board
 	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
 	NUMOFMINES = 10
 
 	call FillBoard
-	;call DrawBoard
-	call DrawBoardSkeleton
-
+	call DrawBoard
 	
 	Invoke ExitProcess, 0
 main ENDP
@@ -56,15 +56,21 @@ main ENDP
 ; Returns: An empty minesweeper board
 ; Uses: eax ecx edx
 ;----------------------------------
-DrawBoardSkeleton PROC USES eax ecx edx
+DrawBoard PROC USES eax ecx edx
 	
 	mov esi, offset CountArray
 	mov eax, red + (gray * 16)
 	call SetTextColor
+
+	mov currentY, STARTY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
+
 	mov edx, offset strCount
 	call WriteString
 	mov edx, offset strSpace
-	mov ecx, 7
+	mov ecx, 6
 Spaces1:
 	call WriteString
 	loop Spaces1
@@ -75,7 +81,7 @@ Spaces1:
 	call WriteString
 	
 	mov edx, offset strSpace
-	mov ecx, 8
+	mov ecx, 7
 Spaces2:
 	call WriteString
 	loop Spaces2
@@ -84,7 +90,11 @@ Spaces2:
 	call SetTextColor
 	mov edx, offset strTime
 	call WriteString
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
 
 	mov eax, lightgray + (gray * 16)
 	call SetTextColor
@@ -93,7 +103,7 @@ Spaces2:
 	mov eax, topLeft
 	call WriteChar
 
-	mov ecx, 21
+	mov ecx, ((2*BOARDSIZE)+1)
 	mov eax, horizontal
 Top:
 	call WriteChar
@@ -101,7 +111,11 @@ Top:
 	
 	mov eax, topRight
 	call WriteChar
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
 
 	mov ecx, BOARDSIZE
 
@@ -116,26 +130,35 @@ Contents:
 	pop ecx
 	mov eax, vertical
 	call WriteChar
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
+
 	loop Contents
 	
 	mov eax, bottomLeft
 	call WriteChar
 	mov eax, horizontal
-	mov ecx, 21
+	mov ecx, ((2*BOARDSIZE)+1)
 Bottom:
 	call WriteChar
 	loop Bottom
 
 	mov eax, bottomRight
 	call WriteChar
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
 
 	mov eax, lightgray
 	call SetTextColor
 
 	ret
-DrawBoardSkeleton ENDP
+DrawBoard ENDP
 
 
 ;-------------------------------
@@ -144,32 +167,34 @@ DrawBoardSkeleton ENDP
 ; Recieves: offset of board array in esi
 ; Returns: Output on screen
 ;-------------------------------
-PrintContents PROC
+PrintContents PROC 
+
+	mov edx, offset strSpace
 	mov ecx, BOARDSIZE
 	call WriteString
 
 Inner:
-	call CharSet
+	call AssignColor
 
-Blam:
 	call WriteChar
 	call WriteString
 	inc esi
-	mov eax, lightgray + (gray * 16)
-	call SetTextColor
 
+	mov eax, lightgray + (gray * 16)	; Restore the default text color
+	call SetTextColor
 	loop Inner
+
 	ret
 PrintContents ENDP
 
 
 ;-----------------------------
-; CharSet
+; AssignColor
 ; Sets the text color and character for eax based on the value in eax
 ; Recieves: a value in the board array
 ; Returns: eax with the correspoding character and color
 ;-----------------------------
-CharSet PROC
+AssignColor PROC
 	mov al, [esi]
 	cmp al, 255
 	je MineSet
@@ -223,7 +248,7 @@ MineSet:
 
 	CharIsSet:
 	ret
-CharSet ENDP
+AssignColor ENDP
 
 
 ;---------------------------------------------------------------
@@ -454,7 +479,7 @@ FillBoard ENDP
 ; Receives: Assumes STARTY, STARTX, BOARDSIZE, and ShowArray exist
 ; Returns: nothing
 ;---------------------------------------------------------------
-DrawBoard PROC
+DrawBoardTest PROC
 	mov eax, 0					; Initialize
 	mov edx, 0					; Initialize
 	mov dh, STARTY				; dh is the Y coordinate for GoToXY Procedure
@@ -496,6 +521,6 @@ Donezooo:
 	loop PrintBoardOuter
 
 	ret
-DrawBoard ENDP
+DrawBoardTest ENDP
 
 END MAIN
