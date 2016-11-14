@@ -42,8 +42,8 @@ main PROC
 	NUMOFMINES = 10
 
 	call FillBoard
-	;call DrawBoard
-	call DrawBoardSkeleton
+	call DrawBoard
+	
 
 	
 	Invoke ExitProcess, 0
@@ -56,7 +56,7 @@ main ENDP
 ; Returns: An empty minesweeper board
 ; Uses: eax ecx edx
 ;----------------------------------
-DrawBoardSkeleton PROC USES eax ecx edx
+DrawBoard PROC USES eax ecx edx
 	
 	mov esi, offset CountArray
 	mov eax, red + (gray * 16)
@@ -64,7 +64,7 @@ DrawBoardSkeleton PROC USES eax ecx edx
 	mov edx, offset strCount
 	call WriteString
 	mov edx, offset strSpace
-	mov ecx, 7
+	mov ecx, 6
 Spaces1:
 	call WriteString
 	loop Spaces1
@@ -75,7 +75,7 @@ Spaces1:
 	call WriteString
 	
 	mov edx, offset strSpace
-	mov ecx, 8
+	mov ecx, 7
 Spaces2:
 	call WriteString
 	loop Spaces2
@@ -93,7 +93,7 @@ Spaces2:
 	mov eax, topLeft
 	call WriteChar
 
-	mov ecx, 21
+	mov ecx, ((2*BOARDSIZE)+1)
 	mov eax, horizontal
 Top:
 	call WriteChar
@@ -122,7 +122,7 @@ Contents:
 	mov eax, bottomLeft
 	call WriteChar
 	mov eax, horizontal
-	mov ecx, 21
+	mov ecx, ((2*BOARDSIZE)+1)
 Bottom:
 	call WriteChar
 	loop Bottom
@@ -135,7 +135,7 @@ Bottom:
 	call SetTextColor
 
 	ret
-DrawBoardSkeleton ENDP
+DrawBoard ENDP
 
 
 ;-------------------------------
@@ -149,27 +149,27 @@ PrintContents PROC
 	call WriteString
 
 Inner:
-	call CharSet
+	call AssignColor
 
-Blam:
 	call WriteChar
 	call WriteString
 	inc esi
-	mov eax, lightgray + (gray * 16)
-	call SetTextColor
 
+	mov eax, lightgray + (gray * 16)	; Restore the default text color
+	call SetTextColor
 	loop Inner
+
 	ret
 PrintContents ENDP
 
 
 ;-----------------------------
-; CharSet
+; AssignColor
 ; Sets the text color and character for eax based on the value in eax
 ; Recieves: a value in the board array
 ; Returns: eax with the correspoding character and color
 ;-----------------------------
-CharSet PROC
+AssignColor PROC
 	mov al, [esi]
 	cmp al, 255
 	je MineSet
@@ -223,7 +223,7 @@ MineSet:
 
 	CharIsSet:
 	ret
-CharSet ENDP
+AssignColor ENDP
 
 
 ;---------------------------------------------------------------
@@ -454,7 +454,7 @@ FillBoard ENDP
 ; Receives: Assumes STARTY, STARTX, BOARDSIZE, and ShowArray exist
 ; Returns: nothing
 ;---------------------------------------------------------------
-DrawBoard PROC
+DrawBoardTest PROC
 	mov eax, 0					; Initialize
 	mov edx, 0					; Initialize
 	mov dh, STARTY				; dh is the Y coordinate for GoToXY Procedure
@@ -496,6 +496,6 @@ Donezooo:
 	loop PrintBoardOuter
 
 	ret
-DrawBoard ENDP
+DrawBoardTest ENDP
 
 END MAIN
