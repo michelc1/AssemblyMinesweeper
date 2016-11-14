@@ -29,8 +29,8 @@ mines = 10
 	strFace db ":)",0
 	Space db " "
 	strSpace db " ",0
-	ShowArray db 100 DUP(254)
-	CountArray db 100 DUP(0)
+	ShowArray db 81 DUP(254)
+	CountArray db 81 DUP(0)
 	MineLocations db 10 DUP(?) 
 	SpaceCount db 0
 .code
@@ -38,7 +38,8 @@ main PROC
 	call Randomize				; So we can get random numbers for mine location generation
 	STARTX = 45					; The X coordinate of the top left corner of the board
 	STARTY = 7					; The Y coordinate of the top left corner of the board
-	BOARDSIZE = 10				; Width of board (will need to make this changeable in game somehow...)
+	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
+	NUMOFMINES = 10
 
 	call FillBoard
 	;call DrawBoard
@@ -102,7 +103,7 @@ Top:
 	call WriteChar
 	call Crlf
 
-	mov ecx, 10
+	mov ecx, BOARDSIZE
 
 
 Contents:
@@ -144,7 +145,7 @@ DrawBoardSkeleton ENDP
 ; Returns: Output on screen
 ;-------------------------------
 PrintContents PROC
-	mov ecx, 10
+	mov ecx, BOARDSIZE
 	call WriteString
 
 Inner:
@@ -246,7 +247,7 @@ GetNums:
 	mov [esi], eax							; Put the random number into our MineLocations array
 
 	; Check to make sure the random number generated wasnt a duplicate (Each mine must be in a unique location)
-	cmp ecx, 10					; if ecx == 10, jump to SkipFirst (the first time around, we dont need to check because theres nothing to check against)
+	cmp ecx, NUMOFMINES			; if ecx == NUMOFMINES, jump to SkipFirst (the first time around, we dont need to check because theres nothing to check against)
 	je SkipFirst
 	mov ebx, ecx				; Save our current count in ebx
 
@@ -298,7 +299,7 @@ PutNums:
 
 	mov edx, ecx
 	neg edx
-	add edx, 100					; edx will go from 0 to 99
+	add edx, BOARDSIZE*BOARDSIZE		; edx will go from 0 to 99
 
 	mov esi, offset CountArray
 	add esi, edx
@@ -310,10 +311,10 @@ PutNums:
 	add esi, edx					; esi will now point at the space directly above the current space
 
 	; DIRECTLY ABOVE
-	cmp edx, 9
+	cmp edx, (BOARDSIZE - 1)
 	jle SkipUpper
 		; If we get here, it means we are not on the top row of the board, and so we can check AT LEAST the space directly above the current space
-	sub esi, 10
+	sub esi, BOARDSIZE
 	mov bl, [esi]
 	cmp bl, 0FFh				; Check for a mine 
 	jne NoMineAbove
@@ -322,8 +323,8 @@ NoMineAbove:
 
 	; ABOVE AND TO THE LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, 10
-	div bl						; Divide our current position by 10
+	mov bl, BOARDSIZE
+	div bl						; Divide our current position by BOARDSIZE
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipUpperLeft
 		; If we get here, it means we are not on the left column or top row of the board, and so we can check AT LEAST the space above and to the left of the current space
@@ -338,8 +339,8 @@ SkipUpperLeft:
 
 	; ABOVE AND TO THE RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	sub ax, 9					; Because the right column will always be 19-99
-	mov bl, 10
+	add ax, 1					; Because the right column will always be 19-99
+	mov bl, BOARDSIZE
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipUpperRight
@@ -352,12 +353,12 @@ SkipUpperLeft:
 	inc SpaceCount				; If mine was found, increment the counter
 NoMineAboveAndToRight:
 SkipUpperRight:
-	add esi, 10					; esi will now point to our original location no matter what
+	add esi, BOARDSIZE					; esi will now point to our original location no matter what
 SkipUpper:
 
 	; CHECK LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, 10
+	mov bl, BOARDSIZE
 	div bl						; Divide our current position by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipLeft
@@ -374,7 +375,7 @@ SkipLeft:
 	; CHECK RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, 10
+	mov bl, BOARDSIZE
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipRight
@@ -389,10 +390,10 @@ NoMineToRight:
 SkipRight:
 
 	; DIRECTLY BELOW
-	cmp edx, 90
+	cmp edx, ((BOARDSIZE*BOARDSIZE) - BOARDSIZE)
 	jge SkipLower
 		; If we get here, it means we are not on the bottom row of the board, and so we can check AT LEAST the space directly below the current space
-	add esi, 10					; esi will now point at the space directly below the current space
+	add esi, BOARDSIZE			; esi will now point at the space directly below the current space
 	mov bl, [esi]
 	cmp bl, 0FFh				; Check for a mine 
 	jne NoMineBelow
@@ -401,7 +402,7 @@ NoMineBelow:
 
 	; BELOW AND TO THE LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, 10
+	mov bl, BOARDSIZE
 	div bl						; Divide our current position by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipLowerLeft
@@ -418,7 +419,7 @@ SkipLowerLeft:
 	; BELOW AND TO THE RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, 10
+	mov bl, BOARDSIZE
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipLowerRight
@@ -431,7 +432,7 @@ SkipLowerLeft:
 	inc SpaceCount				; If mine was found, increment the counter
 NoMineBelowAndToRight:
 SkipLowerRight:
-	sub esi, 10					; esi will now point to our original location no matter what
+	sub esi, BOARDSIZE			; esi will now point to our original location no matter what
 SkipLower:
 
 	; Put the number in its place
