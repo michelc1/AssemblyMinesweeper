@@ -33,18 +33,18 @@ mines = 10
 	CountArray db 81 DUP(0)
 	MineLocations db 10 DUP(?) 
 	SpaceCount db 0
+	currentY BYTE ?
+
 .code
 main PROC
 	call Randomize				; So we can get random numbers for mine location generation
-	STARTX = 45					; The X coordinate of the top left corner of the board
-	STARTY = 7					; The Y coordinate of the top left corner of the board
+	STARTX = 30					; The X coordinate of the top left corner of the board
+	STARTY = 6					; The Y coordinate of the top left corner of the board
 	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
 	NUMOFMINES = 10
 
 	call FillBoard
 	call DrawBoard
-	
-
 	
 	Invoke ExitProcess, 0
 main ENDP
@@ -61,6 +61,12 @@ DrawBoard PROC USES eax ecx edx
 	mov esi, offset CountArray
 	mov eax, red + (gray * 16)
 	call SetTextColor
+
+	mov currentY, STARTY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
+
 	mov edx, offset strCount
 	call WriteString
 	mov edx, offset strSpace
@@ -84,7 +90,11 @@ Spaces2:
 	call SetTextColor
 	mov edx, offset strTime
 	call WriteString
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
 
 	mov eax, lightgray + (gray * 16)
 	call SetTextColor
@@ -101,7 +111,11 @@ Top:
 	
 	mov eax, topRight
 	call WriteChar
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
 
 	mov ecx, BOARDSIZE
 
@@ -116,7 +130,12 @@ Contents:
 	pop ecx
 	mov eax, vertical
 	call WriteChar
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
+
 	loop Contents
 	
 	mov eax, bottomLeft
@@ -129,7 +148,11 @@ Bottom:
 
 	mov eax, bottomRight
 	call WriteChar
-	call Crlf
+	
+	inc currentY
+	mov dh, currentY
+	mov dl, STARTX
+	call GotoXY
 
 	mov eax, lightgray
 	call SetTextColor
@@ -144,7 +167,9 @@ DrawBoard ENDP
 ; Recieves: offset of board array in esi
 ; Returns: Output on screen
 ;-------------------------------
-PrintContents PROC
+PrintContents PROC 
+
+	mov edx, offset strSpace
 	mov ecx, BOARDSIZE
 	call WriteString
 
