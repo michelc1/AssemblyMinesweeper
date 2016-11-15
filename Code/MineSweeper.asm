@@ -7,8 +7,9 @@ bottomLeft = 200
 bottomRight = 188
 horizontal = 205
 vertical = 186
-tile = 35
+tile = 254
 mines = 10
+flag = 226
 
 
 ;-------------------------------
@@ -32,7 +33,7 @@ mines = 10
 	strFace db ":)",0
 	Space db " "
 	strSpace db " ",0
-	ShowArray db 81 DUP(254)
+	ShowArray db 81 DUP(1)
 	CountArray db 81 DUP(0)
 	SpaceCheckStack db 81 DUP(0)	; Used to clear spaces on the board after a click
 	SpaceCheckStackSize db 0		; Same^
@@ -91,6 +92,7 @@ main ENDP
 ;----------------------------------
 DrawBoard PROC USES eax ecx edx
 	
+	mov edi, offset ShowArray
 	mov esi, offset CountArray
 	mov eax, red + (gray * 16)
 	call SetTextColor
@@ -204,17 +206,40 @@ DrawBoard ENDP
 ; Returns: Output on screen
 ;-------------------------------
 PrintContents PROC 
-
+	
 	mov edx, offset strSpace
 	mov ecx, BOARDSIZE
 	call WriteString
 
 Inner:
-	call AssignColor
+	mov eax, [edi]
+	cmp al, 1
+	je DrawTile
+	cmp al, 2
+	je DrawFlag
+	jmp DrawUnder
 
+DrawTile:
+	mov eax, lightgray + (gray * 16)
+	call SetTextColor
+	mov eax, tile
+	jmp InnerBottom
+
+DrawFlag:
+	mov eax, red + (gray * 16)
+	call SetTextColor
+	mov eax, flag
+	jmp InnerBottom
+
+DrawUnder:
+	call AssignColor
+	jmp InnerBottom
+
+InnerBottom:
 	call WriteChar
 	call WriteString
 	inc esi
+	inc edi
 
 	mov eax, lightgray + (gray * 16)	; Restore the default text color
 	call SetTextColor
