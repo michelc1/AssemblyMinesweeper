@@ -20,6 +20,7 @@ INCLUDE GraphWin.inc
 	lastTimeSeconds dd 0		; Last time that was put onto the clock (in seconds)
 	clockMax dd 100				; What the clock will start at
 
+
 .code
 main PROC	
 	mov edx, 0		; Initializer for gotoXY
@@ -31,6 +32,7 @@ main PROC
 	invoke GetStdHandle, STD_INPUT_HANDLE		; Get a handle to std_input
 	mov rHnd, eax								;						02h                    10h                    80h
 	invoke SetConsoleMode, rHnd, 92h			; 92h comes from (ENABLE_LINE_INPUT OR ENABLE_MOUSE_INPUT OR ENABLE_EXTENDED_FLAGS. These values are declared in Windows.h but for whatever reason, the SmallWin.inc included in the Irvine32.inc does not have them.
+
 appContinue:
 	call ClockFunc
 	invoke GetNumberOfConsoleInputEvents, rHnd, OFFSET numEventsOccurred		; Gets the number of mouse/input events held in the buffer
