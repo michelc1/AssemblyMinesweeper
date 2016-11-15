@@ -91,7 +91,7 @@ main ENDP
 ;----------------------------------
 DrawBoard PROC USES eax ecx edx
 	
-	mov esi, offset ShowArray
+	mov esi, offset CountArray
 	mov eax, red + (gray * 16)
 	call SetTextColor
 
