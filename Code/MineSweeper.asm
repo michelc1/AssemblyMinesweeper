@@ -41,6 +41,7 @@ mines = 10
 	currentY BYTE ?
 
 	CMDTitle db "Minesweeper", 0		; Console window title
+	cursorInfo CONSOLE_CURSOR_INFO <1,0>   ; cursor-size = 1 (irrelevant), cursor-visible = 0/false
 
 	; These are all used to capture mouse clicks
 	rHnd HANDLE ?						
@@ -60,6 +61,14 @@ mines = 10
 main PROC
 	invoke SetConsoleTitle, OFFSET CMDTitle		; Sets the title of the console window
 
+	invoke GetStdHandle, STD_OUTPUT_HANDLE
+	invoke SetConsoleCursorInfo, eax, OFFSET cursorInfo		; Make the cursor invisible (no more ugly blinky thing)
+
+	; These 3 lines prep the mouse-click procedure
+	invoke GetStdHandle, STD_INPUT_HANDLE		; Get a handle to std_input
+	mov rHnd, eax								;						02h                    10h                    80h
+	invoke SetConsoleMode, rHnd, 92h			; 92h comes from (ENABLE_LINE_INPUT OR ENABLE_MOUSE_INPUT OR ENABLE_EXTENDED_FLAGS. These values are declared in Windows.h but for whatever reason, the SmallWin.inc included in the Irvine32.inc does not have them.
+
 	; Initialize the timer
 	call GetMseconds
 	mov initialTime, eax
@@ -75,7 +84,7 @@ main PROC
 MainLoop:
 	call DrawBoard
 	; Wait for mouse click. This is where the program will sit for most of the time it is running. Because of this, the GetMouseClick procedure also controls the clock.
-	call GetMouseClick			; Gets mouse click and puts the X-coord in XClick, and Y-coord YClick
+	call GetMouseClick						; Gets mouse click and puts the X-coord in XClick, and Y-coord in YClick
 	; ***TODO*** Update ShowArray based on users click
 	loop MainLoop
 
@@ -508,57 +517,6 @@ ENDPutNums:
 FillBoard ENDP
 
 
-
-;---------------------------------------------------------------
-; DrawBoard:
-; Draws the board
-; Receives: Assumes STARTY, STARTX, BOARDSIZE, and ShowArray exist
-; Returns: nothing
-;---------------------------------------------------------------
-;DrawBoardTest PROC
-;	mov eax, 0					; Initialize
-;	mov edx, 0					; Initialize
-;	mov dh, STARTY				; dh is the Y coordinate for GoToXY Procedure
-;	mov dl, STARTX				; dl is the X coordinate for GoToXY Procedure
-;
-;	mov ecx, BOARDSIZE			; The board will need 'BOARDSIZE' number of rows
-;	mov esi, offset CountArray  ; *********FOR TESTING********* Should really be printarray 
-;
-;; Do the actual printing
-;
-;PrintBoardOuter:
-;	mov ebx, ecx				; Save the outer counter
-;	mov ecx, BOARDSIZE			; Each row will need 'BOARDSIZE' number of columns
-;PrintBoardInner:
-;	call GoToXY					; Go to the coordinates that this particular square will be printed in
-;	mov al, [esi]				; Load the character to be printed
-;
-;	; FOR TESTING!!!
-;	cmp al, 0
-;	jl Donezooo
-;	cmp al, 8
-;	jg Donezooo
-;	add al, 48
-;	
-;Donezooo:
-;	inc esi						; Go to the next character
-;	call writeChar				; Print the character that goes in a space
-;	inc dl						; Get ready to go to the next space...
-;
-;	call GoToXY					; Go to the next space over...
-;	mov al, Space				; Load a space character (only used to make the board look neater)
-;	call writeChar				; Print the space
-;	inc dl						; Get ready to go to the next location...
-;	loop PrintBoardInner
-;
-;	inc dh						; After each full row, increment to the next column...
-;	mov dl, STARTX				; And reset the row start location
-;	mov ecx, ebx				; Get our counter back
-;	loop PrintBoardOuter
-;
-;	ret
-;DrawBoardTest ENDP
-
 ;-------------------------------------------
 ; GetMouseClick
 ; Waits for and captures the users mouse click
@@ -568,9 +526,7 @@ FillBoard ENDP
 ;-------------------------------------------
 GetMouseClick PROC
 	mov rightClick, 3							; This will be used to only exit this procedure on a click. NOT on a mouse-movement
-	invoke GetStdHandle, STD_INPUT_HANDLE		; Get a handle to std_input
-	mov rHnd, eax								;						02h                    10h                    80h
-	invoke SetConsoleMode, rHnd, 92h			; 92h comes from (ENABLE_LINE_INPUT OR ENABLE_MOUSE_INPUT OR ENABLE_EXTENDED_FLAGS. These values are declared in Windows.h but for whatever reason, the SmallWin.inc included in the Irvine32.inc does not have them.
+	
 appContinue:
 	call ClockFunc
 	invoke GetNumberOfConsoleInputEvents, rHnd, OFFSET numEventsOccurred		; Gets the number of mouse/input events held in the buffer
@@ -649,7 +605,7 @@ ClockFunc PROC USES eax ebx edx
 	; Convert time to chars representing the decimal value of the timer
 	inc timerDigit0
 ; Check low bit
-	cmp timerDigit0, ':'
+	cmp timerDigit0, ':'			; ':' is the next ascii char after 9. If we get to that, it means we need to increment the next digit to the left
 	jne AllBitsGood
 	mov timerDigit0, '0'
 	inc timerDigit1
