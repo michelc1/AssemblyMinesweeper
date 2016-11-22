@@ -28,7 +28,7 @@ mines = 10
 	timerDigit1 db '0'		; Used to display timer
 	timerDigit2 db '0'		; Used to display timer
 	strTime db "000",0		; Used to INITIALLY display timer
-	strCount db "000",0
+	strCount db "000",0		; Used to INITIALLY display flag count
 	strFace db ":)",0
 	Space db " "
 	strSpace db " ",0
@@ -38,14 +38,15 @@ mines = 10
 	SpaceCheckStackSize db 0		; Same^
 	MineLocations db 10 DUP(?) 
 	SpaceCount db 0
-	currentY BYTE ?
-	Xcord db 32,34,36,38,40,42,44,46,48
-	Ycord db 8,9,10,11,12,13,14,15,16
-	msgNotFound db "This is not a vaild click X Cord  " , 0
-	msgNotFound1 db "This is not a vaild click Y Cord  " , 0
-	msgVaildClick db "Congrats, this is a vaild click  ", 0
+	currentY db ?
+	Xcord db 32,34,36,38,40,42,44,46,48		; All valid X coordinates of the 9x9 board
+	Ycord db 8,9,10,11,12,13,14,15,16		; All valid Y coordinates of the 9x9 board
+	msgNotFound db "This is not a vaild click X Cord  " , 0		;FOR TESTING CLICKS******
+	msgNotFound1 db "This is not a vaild click Y Cord  " , 0	; FOR TESTING CLICKS******
+	msgVaildClick db "Congrats, this is a vaild click  ", 0		; FOR TESTING CLICKS******
 
 	CMDTitle db "Minesweeper", 0		; Console window title
+	cursorInfo CONSOLE_CURSOR_INFO <1,0>   ; cursor-size = 1 (irrelevant), cursor-visible = 0/false
 
 	; These are all used to capture mouse clicks
 	rHnd HANDLE ?						
@@ -69,8 +70,10 @@ mines = 10
 .code
 main PROC
 	invoke SetConsoleTitle, OFFSET CMDTitle		; Sets the title of the console window
-
 	
+	invoke GetStdHandle, STD_OUTPUT_HANDLE
+	invoke SetConsoleCursorInfo, eax, OFFSET cursorInfo		; Make the cursor invisible (no more ugly blinky thing)
+
 	call InitMouse  ; initialize the mouse
 
 	; Initialize the timer
@@ -83,21 +86,13 @@ main PROC
 	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
 	NUMOFMINES = 10
 
-	; ***TODO*** Wait here for first mouse click... Once clicked, continue	
-	call FillBoard
+	; Wait here for first mouse click... Once clicked, capture it, start the clock and continue	
+	call FillBoard		;*****Need to update this to not alow mines on first click location
 	call DrawBoard
-	mov showClock,0				; hides clock
-	call GetMouseClick			; pause until a click is received
-	mov showClock,1				; show clock
-	
+	mov showClock, 0				; hides clock
+	call GetMouseClick				; pause until a click is received
 
-MainLoop:
-	call DrawBoard
-	; Wait for mouse click. This is where the program will sit for most of the time it is running. Because of this, the GetMouseClick procedure also controls the clock.
-	call GetMouseClick			; Gets mouse click and puts the X-coord in XClick, and Y-coord YClick
-
-	;;;;;;;;;  {   Used only for debugging the mouse position get the x and y coord.
-
+	;**********JUST HERE FOR TESTING***********************
 	mov edx, 0				;
 	call Gotoxy				;
 	mov edx,offset clrLine	;
@@ -115,12 +110,42 @@ MainLoop:
 	movzx eax,rightClick	;
 	call WriteDec			;
 	;;;;;;;;;;; }
-	call crlf 
+	call crlf
+	call ValidClicks
+	;*********************************
 
-	call vaildclicks
+	mov showClock, 1				; show clock
+	
+
+MainLoop:
+	call DrawBoard
+							; Wait for mouse click. This is where the program will sit for most of the time it is running. Because of this, the GetMouseClick procedure also controls the clock.
+	call GetMouseClick			; Gets mouse click and puts the X-coord in XClick, and Y-coord YClick
+
+	;*************Used only for debugging the mouse position get the x and y coord. *************
+	mov edx, 0				;
+	call Gotoxy				;
+	mov edx,offset clrLine	;
+	call WriteString		;
+	mov edx, 0				;
+	call Gotoxy				;
+	movzx eax,XClick		;
+	call WriteDec			;
+	mov al,','				;
+	call WriteChar			;
+	movzx eax,YClick		;
+	call WriteDec			;
+	mov al,':'				;
+	call WriteChar			;
+	movzx eax,rightClick	;
+	call WriteDec			;
+	call crlf 
+	;*************************************
+
+	call ValidClicks
 	
 	; ***TODO*** Update ShowArray based on users click
-	loop MainLoop
+	jmp MainLoop
 
 	
 
@@ -128,7 +153,7 @@ MainLoop:
 main ENDP
 
 ;----------------------------------
-; DrawBoardSkeleton
+; DrawBoard
 ; Draws the board layout to the console 
 ; Recieves: Nothing
 ; Returns: An empty minesweeper board
@@ -350,7 +375,7 @@ FillBoard PROC
 GetNums:
 	mov eax, (BOARDSIZE*BOARDSIZE)			; Get a random number that corresponds with a space on the board
 	call randomRange
-	mov [esi], eax							; Put the random number into our MineLocations array
+	mov [esi], al							; Put the random number into our MineLocations array
 
 	; Check to make sure the random number generated wasnt a duplicate (Each mine must be in a unique location)
 	cmp ecx, NUMOFMINES			; if ecx == NUMOFMINES, jump to SkipFirst (the first time around, we dont need to check because theres nothing to check against)
@@ -555,7 +580,7 @@ FillBoard ENDP
 
 
 ;---------------------------------------------------------------
-; DrawBoard:
+; DrawBoardTest:
 ; Draws the board
 ; Receives: Assumes STARTY, STARTX, BOARDSIZE, and ShowArray exist
 ; Returns: nothing
@@ -613,7 +638,7 @@ FillBoard ENDP
 InitMouse PROC
 	invoke GetStdHandle, STD_INPUT_HANDLE		; Get a handle to std_input
 	mov rHnd, eax								
-	mov eax,0092h								;						02h                    10h                    80h
+	mov eax, 0092h								;						02h                    10h                    80h
 	invoke SetConsoleMode, rHnd, eax			; 92h comes from (ENABLE_LINE_INPUT OR ENABLE_MOUSE_INPUT OR ENABLE_EXTENDED_FLAGS. These values are declared in Windows.h but for whatever reason, the SmallWin.inc included in the Irvine32.inc does not have them.
 	ret
 InitMouse ENDP
@@ -626,9 +651,9 @@ InitMouse ENDP
 ;          Y coord of click in YClick
 ;-------------------------------------------
 GetMouseClick PROC
-	mov rightClick,3	; ; This will be used to only exit this procedure on a click. NOT on a mouse-movement
+	mov rightClick, 3	; This will be used to only exit this procedure on a click. NOT on a mouse-movement
 appContinue:
-	cmp showClock,1	;  hide or show the clock  
+	cmp showClock, 1	;  hide or show the clock  
 	jl noclock			; ebx=0 => no clock
 	call ClockFunc
 noclock:
@@ -643,15 +668,15 @@ noclock:
 	je appContinue	
 
 	; If we are here, there were inputs of some kind
-    invoke ReadConsoleInput,rHnd,ADDR eventBuffer,1,ADDR numEventsRead   ;using addr to get address of local variable 
-    movzx  eax,eventBuffer.EventType
-    cmp eax, MOUSE_EVENT         ; We only care about mouse-events
+    invoke ReadConsoleInput, rHnd, ADDR eventBuffer, 1, ADDR numEventsRead			; Using addr to get address of local variable 
+    movzx eax, eventBuffer.EventType
+    cmp eax, MOUSE_EVENT								; We only care about mouse-events
     jne appContinue    
 
-	cmp eventBuffer.Event.dwEventFlags, 0		; lets check to see if the mouse is clicked down or released 
+	cmp eventBuffer.Event.dwEventFlags, 0				; lets check to see if the mouse is clicked down or released 
 	jne appContinue
 
-    test eventBuffer.Event.dwButtonState, 2		; 2 is the value of RIGHTMOST_BUTTON_PRESSED event
+    test eventBuffer.Event.dwButtonState, 2				; 2 is the value of RIGHTMOST_BUTTON_PRESSED event
 	jz CheckLeftClick
 
 	mov al,rightClick			; set current value as old
@@ -662,7 +687,7 @@ noclock:
 CheckLeftClick:
 	test eventBuffer.Event.dwButtonState, 1		; 1 is left click
 	jz appContinue								; instead lets do, if its not a left click or right click we will continue on 
-	mov al,rightClick			; chnage current value as old
+	mov al,rightClick							; chnage current value as old
 	mov oldClick,al
 	mov rightClick, 0
 
@@ -680,38 +705,37 @@ done:
 GetMouseClick ENDP
 
 ;-------------------------------------------
-; vaildclicks
+; ValidClicks 
 ; gets the location of a click on determines if it is on the board
 ; Receives: Xclick and Yclick
 ; Returns: Nothing
 ;-------------------------------------------
+ValidClicks proc
 
-
-vaildclicks proc
-
-mov esi, offset Xcord  ; array of vaild X cord 
-mov edi, offset Ycord  ; array of vaild Y cord 
-mov ecx, lengthof Xcord   
+	mov esi, offset Xcord		; array of vaild X cord 
+	mov edi, offset Ycord		; array of vaild Y cord 
+	mov ecx, lengthof Xcord   
 
 searchXcord:
 
-	mov ax, Xclick  
+	mov ax, XClick  
 	cmp al, [esi]      ; we are going to check if the X cord click is within our vaild click list
-	je searchYcord     ; if it is we are going to seatch the Y cord 
+	je yValid		   ; if it is we are going to search the Y cord 
 
-inc esi
+	inc esi
 Loop searchXcord 
 
 jmp notFound     ; if X cord was not found, we are going to stop search for vaild, we know it does not exist 
 
+yValid:
 mov ecx, lengthof Ycord
 searchYcord:
 
-	mov ax, Yclick 
+	mov ax, YClick 
 	cmp al, [edi]     ; we are going to check if the Y cord click is within our vaild click list
 	je found          ; if it is we know we have a vaild click 
 
-inc edi
+	inc edi
 Loop searchYcord 
 
 mov edx, offset msgNotFound1      ; if not there are no vaild clicks
@@ -738,7 +762,7 @@ jmp byebye   ; no vaild clicks we are done
 byebye:
 
 ret
-vaildclicks endp 
+ValidClicks endp 
 
 ;-----------------------------------------------
 ; ClockFunc
@@ -839,9 +863,22 @@ ClearSpace PROC ;USES eax ebx ecx edx esi edi
 	mov ecx, 0
 	mov edx, 0
 
-
-
 	ret
 ClearSpace ENDP
+
+;--------------------------------------------------------
+; TEST TEST TEST TEST TEST TEST
+;--------------------------------------------------------
+TestProc PROC
+	mov eax, 0
+	mov esi, offset Xcord
+	mov ecx, lengthof Xcord
+LBLBLBLBLBL:
+	mov al, [esi]
+	call WriteInt
+	inc esi
+	loop LBLBLBLBLBL
+	ret
+TestProc ENDP
 
 END MAIN
