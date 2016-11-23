@@ -74,10 +74,9 @@ main PROC
 	invoke GetStdHandle, STD_OUTPUT_HANDLE
 	invoke SetConsoleCursorInfo, eax, OFFSET cursorInfo		; Make the cursor invisible (no more ugly blinky thing)
 
-	call InitMouse  ; initialize the mouse
+	call InitMouse			; initialize the mouse
 
-	; Initialize the timer
-	call GetMseconds
+	call GetMseconds		; Initialize the timer
 	mov initialTime, eax
 		
 	call Randomize				; So we can get random numbers for mine location generation
@@ -86,15 +85,16 @@ main PROC
 	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
 	NUMOFMINES = 10
 
-	; Wait here for first mouse click... Once clicked, capture it, start the clock and continue	
-	call FillBoard		;*****Need to update this to not alow mines on first click location
-	
-	call TestProc	;***FOR TESTING*************************************************************************
-	
 	call DrawBoard
-	mov showClock, 0				; hides clock
-	call GetMouseClick				; pause until a click is received
+	mov showClock, 0
+TryAgain:	
+	call GetMouseClick				; Pause until the first click is received
 	call ValidClicks
+	cmp eax, 1
+	jne TryAgain
+	call FillBoard					; Once we get the first click, we can place the mines
+	call TestProc	;***FOR TESTING*************************************************************************
+	call ClearSpace
 
 	mov showClock, 1				; show clock
 
@@ -103,8 +103,10 @@ MainLoop:
 		; Wait for mouse click. This is where the program will sit for most of the time it is running. Because of this, the GetMouseClick procedure also controls the clock.
 	call GetMouseClick			; Gets mouse click and puts the X-coord in XClick, and Y-coord YClick
 	call ValidClicks
-	
-	; ***TODO*** Update ShowArray based on users click
+	cmp eax, 1
+	jne MainLoop
+	call ClearSpace
+
 	jmp MainLoop
 
 	Invoke ExitProcess, 0
@@ -371,6 +373,47 @@ GetNums:
 	mov eax, (BOARDSIZE*BOARDSIZE)			; Get a random number that corresponds with a space on the board
 	call randomRange
 	mov [esi], al							; Put the random number into our MineLocations array
+
+	; Check to make sure the random number generated wasnt the location of the first click or any space around it (First click MUST be a 0 space)
+	push eax
+	call GetMouseClickOffset
+	mov edx, eax
+	pop eax
+
+	cmp eax, edx			; Check space
+	je GetNums
+
+	sub edx, BOARDSIZE
+	cmp eax, edx			; Check above space
+	je GetNums	
+	
+	dec edx
+	cmp eax, edx			; Check above and to left of space
+	je GetNums	
+
+	add edx, 2
+	cmp eax, edx			; Check above and to right of space
+	je GetNums	
+
+	add edx, BOARDSIZE
+	cmp eax, edx			; Check to right of space
+	je GetNums
+
+	sub edx, 2
+	cmp eax, edx			; Check to left of space
+	je GetNums	
+
+	add edx, BOARDSIZE
+	cmp eax, edx			; Check below and to left of space
+	je GetNums
+
+	inc edx
+	cmp eax, edx			; Check below space
+	je GetNums
+
+	inc edx
+	cmp eax, edx			; Check below and to right of space
+	je GetNums
 
 	; Check to make sure the random number generated wasnt a duplicate (Each mine must be in a unique location)
 	cmp ecx, NUMOFMINES			; if ecx == NUMOFMINES, jump to SkipFirst (the first time around, we dont need to check because theres nothing to check against)
@@ -652,7 +695,7 @@ GetMouseClick ENDP
 ; ValidClicks 
 ; gets the location of a click on determines if it is on the board
 ; Receives: Xclick and Yclick
-; Returns: Nothing
+; Returns: 0 in eax for invalid. 1 for valid.
 ;-------------------------------------------
 ValidClicks proc
 	mov esi, offset Xcord		; array of vaild X cord 
@@ -668,6 +711,7 @@ searchXcord:
 	inc esi
 	Loop searchXcord 
 
+	mov eax, 0
 	ret				   ; if X cord was not found, we are going to stop search for vaild, we know it does not exist 
 
 yValid:
@@ -681,10 +725,11 @@ searchYcord:
 	inc edi
 	Loop searchYcord 
 
+	mov eax, 0
 	ret				  ; if not there are no vaild clicks
 
 Found:
-	call ClearSpace
+	mov eax, 1
 	ret				  ; once we have vaild click we are done
 
 ValidClicks endp 
@@ -758,6 +803,37 @@ NoUpdate:
 	ret
 ClockFunc ENDP
 
+;-------------------------------------------
+; GetMouseClickOffset
+; Get the offset (*index) in the count/show array
+;  of the users click. For example: if they clicked
+;  on the 3rd element in the first row, this would
+;  return 3
+; Receives: XClick and YClick are filled
+; Returns: Offset in eax
+;-------------------------------------------
+GetMouseClickOffset PROC USES ebx ecx edx
+	mov eax, 0
+	mov ebx, 0
+	mov ecx, 0
+	mov edx, 0
+	
+	mov bx, YClick					; Get actual row
+	sub bx, (StartY + 2) 
+
+	mov ax, XClick					; Get actual column
+	sub ax, (StartX + 2)
+	mov cx, 2	
+	div cx							; Column will now be in ax
+	
+	mov cx, BOARDSIZE
+	xchg ax, bx
+	mul cx							; Because we are dealing with small numbers, we can ignore dx and assume the while product is in ax
+
+	add ax, bx						; ax will now contain the offset of the click
+	ret
+GetMouseClickOffset ENDP
+
 ;-------------------------------------------------
 ; ClearSpace 
 ; This is what is called when a space is clicked. If the
@@ -776,27 +852,16 @@ ClockFunc ENDP
 ;			the correct locations.
 ;-------------------------------------------------
 ClearSpace PROC ;USES eax ebx ecx edx esi edi
-	
+
 	mov esi, offset CountArray
 	mov edi, offset ShowArray
 	mov eax, 0
 	mov ebx, 0
 	mov ecx, 0
 	mov edx, 0
-		
-	mov bx, YClick					; Get actual row
-	sub bx, (StartY + 2) 
 
-	mov ax, XClick					; Get actual column
-	sub ax, (StartX + 2)
-	mov cx, 2
-	div cx							; Column will now be in ax
-	
-	mov cx, BOARDSIZE
-	xchg ax, bx
-	mul cx							; Because we are dealing with small numbers, we can ignore dx and assume the while product is in ax
+	call GetMouseClickOffset		; Gets the offset of the mouse click and puts it in eax
 
-	add ax, bx						; ax will now contain the offset of the click
 	add esi, eax					; the 'e' part of eax will be zero no matter what so this is ok (we are essentially adding ax to esi)
 	add edi, eax
 
