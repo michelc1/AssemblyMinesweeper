@@ -1,6 +1,6 @@
+
 INCLUDE Irvine32.inc
 
-; Constant characters (for building the board)
 topLeft = 201
 topRight = 187
 bottomLeft = 200
@@ -12,15 +12,15 @@ mines = 10
 
 
 ;-------------------------------
-; Colors for each number (REFERENCE)
+; Colors for each number
 ; 1 = Blue
 ; 2 = Green
 ; 3 = Red
 ; 4 = Purple
 ; 5 = Maroon
-; 6 = Cyan
+; 6 = Turquoise
 ; 7 = Black
-; 8 = Light Gray
+; 8 = Gray
 ;-------------------------------
 
 .data
@@ -34,16 +34,16 @@ mines = 10
 	strSpace db " ",0
 	ShowArray db 81 DUP(254)
 	CountArray db 81 DUP(0)
-	
-	SpaceCheckStack dd 81 DUP(0)	; Used to clear spaces on the board after a click
+	SpaceCheckStack db 81 DUP(0)	; Used to clear spaces on the board after a click
 	SpaceCheckStackSize db 0		; Same^
-	StackValFound db 0
-	
 	MineLocations db 10 DUP(?) 
 	SpaceCount db 0
 	currentY db ?
 	Xcord db 32,34,36,38,40,42,44,46,48		; All valid X coordinates of the 9x9 board
 	Ycord db 8,9,10,11,12,13,14,15,16		; All valid Y coordinates of the 9x9 board
+	msgNotFound db "This is not a vaild click X Cord  " , 0		;FOR TESTING CLICKS******
+	msgNotFound1 db "This is not a vaild click Y Cord  " , 0	; FOR TESTING CLICKS******
+	msgVaildClick db "Congrats, this is a vaild click  ", 0		; FOR TESTING CLICKS******
 
 	CMDTitle db "Minesweeper", 0		; Console window title
 	cursorInfo CONSOLE_CURSOR_INFO <1,0>   ; cursor-size = 1 (irrelevant), cursor-visible = 0/false
@@ -60,6 +60,9 @@ mines = 10
 
 	showClock db 0			; if the clock must be shown
 
+	Score		db 10		; score 
+	scoreArray	db 91 DUP(0); array for saving the current state of the flags
+
 	; These are all used for the timer
 	initialTime dd 0			; Time when the program starts
 	lastTimeSeconds dd 0		; Last time that was put onto the clock (in seconds)
@@ -74,9 +77,10 @@ main PROC
 	invoke GetStdHandle, STD_OUTPUT_HANDLE
 	invoke SetConsoleCursorInfo, eax, OFFSET cursorInfo		; Make the cursor invisible (no more ugly blinky thing)
 
-	call InitMouse			; initialize the mouse
+	call InitMouse  ; initialize the mouse
 
-	call GetMseconds		; Initialize the timer
+	; Initialize the timer
+	call GetMseconds
 	mov initialTime, eax
 		
 	call Randomize				; So we can get random numbers for mine location generation
@@ -85,28 +89,73 @@ main PROC
 	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
 	NUMOFMINES = 10
 
+	; Wait here for first mouse click... Once clicked, capture it, start the clock and continue	
+	call FillBoard		;*****Need to update this to not alow mines on first click location
 	call DrawBoard
-	mov showClock, 0
-TryAgain:	
-	call GetMouseClick				; Pause until the first click is received
+	call PrintScore					; print current score
+	mov showClock, 0				; hides clock
+	call GetMouseClick				; pause until a click is received
+
+	;**********JUST HERE FOR TESTING***********************
+	mov edx, 0				;
+	call Gotoxy				;
+	mov edx,offset clrLine	;
+	call WriteString		;
+	mov edx, 0				;
+	call Gotoxy				;
+	movzx eax,XClick		;
+	call WriteDec			;
+	mov al,','				;
+	call WriteChar			;
+	movzx eax,YClick		;
+	call WriteDec			;
+	mov al,':'				;
+	call WriteChar			;
+	movzx eax,rightClick	;
+	call WriteDec			;
+	;;;;;;;;;; }
+	call crlf
 	call ValidClicks
-	cmp eax, 1
-	jne TryAgain
-	call FillBoard					; Once we get the first click, we can place the mines
-	call TestProc	;***FOR TESTING*************************************************************************
-	call ClearSpace
+	;*********************************
 
 	mov showClock, 1				; show clock
+	
 
 MainLoop:
 	call DrawBoard
-		; Wait for mouse click. This is where the program will sit for most of the time it is running. Because of this, the GetMouseClick procedure also controls the clock.
+	call PrintScore				; print current score
+								; Wait for mouse click. This is where the program will sit for most of the time it is running. Because of this, the GetMouseClick procedure also controls the clock.
 	call GetMouseClick			; Gets mouse click and puts the X-coord in XClick, and Y-coord YClick
-	call ValidClicks
-	cmp eax, 1
-	jne MainLoop
-	call ClearSpace
 
+	;*************Used only for debugging the mouse position get the x and y coord. *************
+	mov edx, 0				;
+	call Gotoxy				;
+	mov edx,offset clrLine	;
+	call WriteString		;
+	mov edx, 0				;
+	call Gotoxy				;
+	movzx eax,XClick		;
+	call WriteDec			;
+	mov al,','				;
+	call WriteChar			;
+	movzx eax,YClick		;
+	call WriteDec			;
+	mov al,':'				;
+	call WriteChar			;
+	movzx eax,rightClick	;
+	call WriteDec			;
+	call crlf 
+	;*************************************
+
+	call ValidClicks
+	
+	cmp eax,0			; check if the user clicked on a valid position
+	je	notValid		; if he didn't, then keep waiting
+	cmp rightClick,1	; otherwise, check if the user did a right click
+	jne notValid		; if not, keep waiting
+	call updateScore	; otherwise, update flags
+notValid:
+	; ***TODO*** Update ShowArray based on users click
 	jmp MainLoop
 
 	Invoke ExitProcess, 0
@@ -121,7 +170,7 @@ main ENDP
 ;----------------------------------
 DrawBoard PROC USES eax ecx edx
 	
-	mov esi, offset ShowArray
+	mov esi, offset CountArray
 	mov eax, red + (gray * 16)
 	call SetTextColor
 
@@ -240,10 +289,10 @@ PrintContents PROC
 	call WriteString
 
 Inner:
-	call AssignColor		; Prepares what to print and what color is should be
+	call AssignColor
 
-	call WriteChar			; Prints whatever was prepared by the AssignColor procedure
-	call WriteString		; Prints a space (for formatting)
+	call WriteChar
+	call WriteString
 	inc esi
 
 	mov eax, lightgray + (gray * 16)	; Restore the default text color
@@ -262,12 +311,9 @@ PrintContents ENDP
 ;-----------------------------
 AssignColor PROC
 	mov al, [esi]
-	cmp al, 255		; Mine
+	cmp al, 255
 	je MineSet
-	cmp al, 15		; Flag (becasue 15 = F = Flag...)
-	je FlagSet
-
-	cmp al, 0		; Number
+	cmp al, 0
 	je ZeroSet
 	cmp al, 1
 	je OneSet
@@ -277,21 +323,12 @@ AssignColor PROC
 	je ThreeSet
 	cmp al, 4
 	je FourSet
-	cmp al, 5
-	je FiveSet
-	cmp al, 6
-	je SixSet
-	cmp al, 7
-	je SevenSet
-	cmp al, 8
-	je EightSet
-
-	cmp al, 0		; Other. Do nothing
+	cmp al, 0
 	jl CharIsSet
 	cmp al, 8
 	jg CharIsSet
-	;add al, 48		; Not needed? (Unreachable)
-	;jmp CharIsSet
+	add al, 48
+	jmp CharIsSet
 
 ZeroSet:
 	mov eax, '.'
@@ -317,39 +354,14 @@ FourSet:
 	call SetTextColor
 	mov eax, '4'
 	jmp CharIsSet
-FiveSet:
-	mov eax, lightRed + (gray * 16)
-	call SetTextColor
-	mov eax, '5'
-	jmp CharIsSet
-SixSet:
-	mov eax, cyan + (gray * 16)
-	call SetTextColor
-	mov eax, '6'
-	jmp CharIsSet
-SevenSet:
-	mov eax, black + (gray * 16)
-	call SetTextColor
-	mov eax, '7'
-	jmp CharIsSet	
-EightSet:
-	mov eax, lightGray + (gray * 16)
-	call SetTextColor
-	mov eax, '8'
-	jmp CharIsSet		
 
 MineSet:
 	mov eax, black + (gray * 16)
 	call SetTextColor
 	mov al, 42
 	jmp CharIsSet
-FlagSet:
-	mov eax, white + (gray * 16)
-	call SetTextColor
-	mov al, 191
-	jmp CharIsSet
 
-CharIsSet:
+	CharIsSet:
 	ret
 AssignColor ENDP
 
@@ -373,47 +385,6 @@ GetNums:
 	mov eax, (BOARDSIZE*BOARDSIZE)			; Get a random number that corresponds with a space on the board
 	call randomRange
 	mov [esi], al							; Put the random number into our MineLocations array
-
-	; Check to make sure the random number generated wasnt the location of the first click or any space around it (First click MUST be a 0 space)
-	push eax
-	call GetMouseClickOffset
-	mov edx, eax
-	pop eax
-
-	cmp eax, edx			; Check space
-	je GetNums
-
-	sub edx, BOARDSIZE
-	cmp eax, edx			; Check above space
-	je GetNums	
-	
-	dec edx
-	cmp eax, edx			; Check above and to left of space
-	je GetNums	
-
-	add edx, 2
-	cmp eax, edx			; Check above and to right of space
-	je GetNums	
-
-	add edx, BOARDSIZE
-	cmp eax, edx			; Check to right of space
-	je GetNums
-
-	sub edx, 2
-	cmp eax, edx			; Check to left of space
-	je GetNums	
-
-	add edx, BOARDSIZE
-	cmp eax, edx			; Check below and to left of space
-	je GetNums
-
-	inc edx
-	cmp eax, edx			; Check below space
-	je GetNums
-
-	inc edx
-	cmp eax, edx			; Check below and to right of space
-	je GetNums
 
 	; Check to make sure the random number generated wasnt a duplicate (Each mine must be in a unique location)
 	cmp ecx, NUMOFMINES			; if ecx == NUMOFMINES, jump to SkipFirst (the first time around, we dont need to check because theres nothing to check against)
@@ -616,6 +587,57 @@ ENDPutNums:
 FillBoard ENDP
 
 
+
+;---------------------------------------------------------------
+; DrawBoardTest:
+; Draws the board
+; Receives: Assumes STARTY, STARTX, BOARDSIZE, and ShowArray exist
+; Returns: nothing
+;---------------------------------------------------------------
+;DrawBoardTest PROC
+;	mov eax, 0					; Initialize
+;	mov edx, 0					; Initialize
+;	mov dh, STARTY				; dh is the Y coordinate for GoToXY Procedure
+;	mov dl, STARTX				; dl is the X coordinate for GoToXY Procedure
+;
+;	mov ecx, BOARDSIZE			; The board will need 'BOARDSIZE' number of rows
+;	mov esi, offset CountArray  ; *********FOR TESTING********* Should really be printarray 
+;
+;; Do the actual printing
+;
+;PrintBoardOuter:
+;	mov ebx, ecx				; Save the outer counter
+;	mov ecx, BOARDSIZE			; Each row will need 'BOARDSIZE' number of columns
+;PrintBoardInner:
+;	call GoToXY					; Go to the coordinates that this particular square will be printed in
+;	mov al, [esi]				; Load the character to be printed
+;
+;	; FOR TESTING!!!
+;	cmp al, 0
+;	jl Donezooo
+;	cmp al, 8
+;	jg Donezooo
+;	add al, 48
+;	
+;Donezooo:
+;	inc esi						; Go to the next character
+;	call writeChar				; Print the character that goes in a space
+;	inc dl						; Get ready to go to the next space...
+;
+;	call GoToXY					; Go to the next space over...
+;	mov al, Space				; Load a space character (only used to make the board look neater)
+;	call writeChar				; Print the space
+;	inc dl						; Get ready to go to the next location...
+;	loop PrintBoardInner
+;
+;	inc dh						; After each full row, increment to the next column...
+;	mov dl, STARTX				; And reset the row start location
+;	mov ecx, ebx				; Get our counter back
+;	loop PrintBoardOuter
+;
+;	ret
+;DrawBoardTest ENDP
+
 ;-------------------------------------------
 ; InitMouse
 ; Initialize console to receive mouse events
@@ -695,9 +717,10 @@ GetMouseClick ENDP
 ; ValidClicks 
 ; gets the location of a click on determines if it is on the board
 ; Receives: Xclick and Yclick
-; Returns: 0 in eax for invalid. 1 for valid.
+; Returns: Nothing
 ;-------------------------------------------
 ValidClicks proc
+
 	mov esi, offset Xcord		; array of vaild X cord 
 	mov edi, offset Ycord		; array of vaild Y cord 
 	mov ecx, lengthof Xcord   
@@ -709,13 +732,12 @@ searchXcord:
 	je yValid		   ; if it is we are going to search the Y cord 
 
 	inc esi
-	Loop searchXcord 
+Loop searchXcord 
 
-	mov eax, 0
-	ret				   ; if X cord was not found, we are going to stop search for vaild, we know it does not exist 
+jmp notFound     ; if X cord was not found, we are going to stop search for vaild, we know it does not exist 
 
 yValid:
-	mov ecx, lengthof Ycord
+mov ecx, lengthof Ycord
 searchYcord:
 
 	mov ax, YClick 
@@ -723,15 +745,35 @@ searchYcord:
 	je found          ; if it is we know we have a vaild click 
 
 	inc edi
-	Loop searchYcord 
+Loop searchYcord 
 
-	mov eax, 0
-	ret				  ; if not there are no vaild clicks
+mov edx, offset msgNotFound1      ; if not there are no vaild clicks
+call writestring
+mov ax, Yclick 
+call writedec
+call crlf 
+mov eax,0			; click was not valid
+jmp byebye
 
 Found:
-	mov eax, 1
-	ret				  ; once we have vaild click we are done
 
+mov edx, offset msgVaildClick     
+call writestring
+mov eax,1			; click was valid
+
+jmp byebye      ; once we have vaild click we are done
+
+notFound:
+mov edx, offset msgNotFound
+call writestring
+mov ax, Xclick 
+call writedec
+call crlf 
+mov eax,0			;  click was not valid
+jmp byebye   ; no vaild clicks we are done 
+
+byebye:
+ret
 ValidClicks endp 
 
 ;-----------------------------------------------
@@ -803,37 +845,6 @@ NoUpdate:
 	ret
 ClockFunc ENDP
 
-;-------------------------------------------
-; GetMouseClickOffset
-; Get the offset (*index) in the count/show array
-;  of the users click. For example: if they clicked
-;  on the 3rd element in the first row, this would
-;  return 3
-; Receives: XClick and YClick are filled
-; Returns: Offset in eax
-;-------------------------------------------
-GetMouseClickOffset PROC USES ebx ecx edx
-	mov eax, 0
-	mov ebx, 0
-	mov ecx, 0
-	mov edx, 0
-	
-	mov bx, YClick					; Get actual row
-	sub bx, (StartY + 2) 
-
-	mov ax, XClick					; Get actual column
-	sub ax, (StartX + 2)
-	mov cx, 2	
-	div cx							; Column will now be in ax
-	
-	mov cx, BOARDSIZE
-	xchg ax, bx
-	mul cx							; Because we are dealing with small numbers, we can ignore dx and assume the while product is in ax
-
-	add ax, bx						; ax will now contain the offset of the click
-	ret
-GetMouseClickOffset ENDP
-
 ;-------------------------------------------------
 ; ClearSpace 
 ; This is what is called when a space is clicked. If the
@@ -852,7 +863,11 @@ GetMouseClickOffset ENDP
 ;			the correct locations.
 ;-------------------------------------------------
 ClearSpace PROC ;USES eax ebx ecx edx esi edi
-
+	;SpaceCheckStack db 81 DUP(0)
+	;SpaceCheckStackSize db 0
+	;XClick dw ?
+	;YClick	dw ?
+	
 	mov esi, offset CountArray
 	mov edi, offset ShowArray
 	mov eax, 0
@@ -860,408 +875,105 @@ ClearSpace PROC ;USES eax ebx ecx edx esi edi
 	mov ecx, 0
 	mov edx, 0
 
-	call GetMouseClickOffset		; Gets the offset of the mouse click and puts it in eax
-
-	add esi, eax					; the 'e' part of eax will be zero no matter what so this is ok (we are essentially adding ax to esi)
-	add edi, eax
-
-	mov edx, eax					; Will be used to find row/col #
-	mov eax, 0						; Re-Clear everything 
-	mov ebx, 0
-	mov ecx, offset SpaceCheckStack
-
-	; ESI and EDI are now set up and we can begin
-
-	cmp rightClick, 1		; Was it a right click???
-	jne CheckIfFlag
-	mov bl, 254
-	mov al, [edi]
-	cmp al, 0Fh
-	jne TryPlaceFlag
-	mov [edi], bl			; It was already a flag and they right clicked so set it back
-	ret
-TryPlaceFlag:	
-	cmp [edi], bl
-	je PlaceFlag
-	ret
-PlaceFlag:
-	mov bl, 0Fh
-	mov [edi], bl			; Indicates a flag
-	ret
-	
-CheckIfFlag:
-	mov al, [edi]
-	cmp al, 0Fh
-	jne CheckIfMine
-	ret
-
-CheckIfMine:	
-	mov al, [esi]
-	cmp al, 0FFh
-	jne CheckSpaces
-	mov bl, 0FFh
-	mov [edi], bl
-	ret						; GAMEOVER. MINE CLICKED
-	
-CheckSpaces:
-	mov edx, esi
-	sub edx, offset CountArray
-
-	mov edi, esi
-	sub edi, offset CountArray
-	add edi, offset ShowArray
-
-	mov al, [esi]
-	cmp al, 0FFh
-	je ENDCheckSpaces					; If the current space is a mine, Skip it
-	
-	mov [edi], al		; It was a number, so put the count array value into show array
-	
-	cmp al, 0			; If it was a zero, we need to check everything around it. Else we do not
-	jne ENDCheckSpaces
-	
-	
-	; DIRECTLY ABOVE
-	cmp edx, (BOARDSIZE - 1)
-	jle SkipUpper
-		; If we get here, it means we are not on the top row of the board, and so we can look at AT LEAST the space directly above the current space
-	sub esi, BOARDSIZE
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je AboveAlreadyOnStack  
-
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-AboveAlreadyOnStack:
-
-	; ABOVE AND TO THE LEFT
-	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
-	div bl						; Divide our current position by BOARDSIZE
-	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
-	je SkipUpperLeft
-		; If we get here, it means we are not on the left column or top row of the board, and so we can check AT LEAST the space above and to the left of the current space
-	dec esi
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je AboveAndToLeftAlreadyOnStack  
-
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-	
-AboveAndToLeftAlreadyOnStack:
-	inc esi						; Put esi back to where it was
-SkipUpperLeft:
-
-	; ABOVE AND TO THE RIGHT
-	mov ax, dx					; edx will always be smaller than a word so this is fine
-	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
-	div bl						; Divide our current position (minus 9) by 10
-	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
-	je SkipUpperRight
-		; If we get here, it means we are not on the right column or top row of the board, and so we can check AT LEAST the space above and to the right of the current space
-	inc esi
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je AboveAndToRightAlreadyOnStack  
-	
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-	
-AboveAndToRightAlreadyOnStack:
-	dec esi						; Put esi back to where it was
-SkipUpperRight:
-	add esi, BOARDSIZE					; esi will now point to our original location no matter what
-SkipUpper:
-
-	; CHECK LEFT
-	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
-	div bl						; Divide our current position by 10
-	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
-	je SkipLeft
-		; If we get here, it means we are not on the left column of the board, and so we can check AT LEAST the space to the left of the current space
-	dec esi
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je LeftAlreadyOnStack  
-	
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-	
-LeftAlreadyOnStack:
-	inc esi						; Put esi back to where it was
-SkipLeft:
-
-	; CHECK RIGHT
-	mov ax, dx					; edx will always be smaller than a word so this is fine
-	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
-	div bl						; Divide our current position (minus 9) by 10
-	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
-	je SkipRight
-		; If we get here, it means we are not on the right column of the board, and so we can check AT LEAST the space to the right of the current space
-	inc esi
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je RightAlreadyOnStack  
-	
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-	
-RightAlreadyOnStack:
-	dec esi						; Put esi back to where it was
-SkipRight:
-
-	; DIRECTLY BELOW
-	cmp edx, ((BOARDSIZE*BOARDSIZE) - BOARDSIZE)
-	jge SkipLower
-		; If we get here, it means we are not on the bottom row of the board, and so we can check AT LEAST the space directly below the current space
-	add esi, BOARDSIZE			; esi will now point at the space directly below the current space
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je BelowAlreadyOnStack  
-	
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-BelowAlreadyOnStack:
-
-	; BELOW AND TO THE LEFT
-	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
-	div bl						; Divide our current position by 10
-	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
-	je SkipLowerLeft
-		; If we get here, it means we are not on the left column or bottom row of the board, and so we can check AT LEAST the space below and to the left of the current space
-	dec esi
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je BelowAndToLeftAlreadyOnStack  
-	
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-	
-BelowAndToLeftAlreadyOnStack:
-	inc esi						; Put esi back to where it was
-SkipLowerLeft:
-
-	; BELOW AND TO THE RIGHT
-	mov ax, dx					; edx will always be smaller than a word so this is fine
-	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
-	div bl						; Divide our current position (minus 9) by 10
-	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
-	je SkipLowerRight
-		; If we get here, it means we are not on the right column or bottom row of the board, and so we can check AT LEAST the space below and to the right of the current space
-	inc esi
-	
-	call CheckStackForVal	
-	cmp StackValFound, 1    
-	je BelowAndToRightAlreadyOnStack  
-	
-	mov [ecx], esi
-	add ecx, 4
-	inc SpaceCheckStackSize
-	
-BelowAndToRightAlreadyOnStack:
-	dec esi						; Put esi back to where it was
-SkipLowerRight:
-	sub esi, BOARDSIZE			; esi will now point to our original location no matter what
-SkipLower:
-ENDCheckSpaces:
-
-	cmp SpaceCheckStackSize, 0
-	jle DoneClearingSpace
-	
-	sub ecx, 4
-	mov esi, [ecx]
-	mov ebx, 0
-	mov [ecx], ebx
-	dec SpaceCheckStackSize
-	
-	jmp CheckSpaces
-DoneClearingSpace:
 	ret
 ClearSpace ENDP
 
-;---------------------------------------
-; CheckStackForVal
-; Used by the ClearSpace Procedure to see
-;  if a given space has already been checked
-;  or is schedules to be checked
-; Receives: offset of space in esi
-;           offset of SpaceCheckStack in ecx
-; Returns: 1 in StackValFound if space has been or will be checked
-;		   0 otherwise
-;---------------------------------------
-CheckStackForVal PROC USES eax ebx ecx esi 
-	mov eax, esi						; Val we are looking for
-	mov esi, offset SpaceCheckStack		; Start of SpaceCheckStack DD array
-	mov ecx, 0
-	mov cl, SpaceCheckStackSize		; # of elements in SpaceCheckStack DD array
-	
-	; Check to see if the space is already cleared
-	push eax
-	sub eax, offset CountArray
-	add eax, offset ShowArray
-	mov bl, 254
-	cmp [eax], bl
-	je PreCheckStackLBL
-	mov StackValFound, 1	; If the space contains anything besides a 254, it has already been checked and we don't need ot worry about it
-	pop eax
-	ret
-
-	; Check to see if the space is already on the 'to be checked' stack
-PreCheckStackLBL:
-	pop eax
-	cmp ecx, 0
-	jg CheckStackLBL
-	mov StackValFound, 0
-	ret
-
-CheckStackLBL:
-	cmp eax, [esi]
-	je ElementFoundOnStack
-	add esi, 4
-	loop CheckStackLBL
-	
-	mov StackValFound, 0
-	ret	
-	
-ElementFoundOnStack:
-	mov StackValFound, 1
-	ret
-	
-CheckStackForVal ENDP
-
-
-;***********************************************************************
 ;--------------------------------------------------------
-; TEST DISPLAY!!!
+; Update Score
+; Updates the flag score based upon click
+; X-coordinate and Y coordinate
+; New updated Score 
 ;--------------------------------------------------------
-;***********************************************************************
-TestProc PROC USES eax ecx edx
-	
-	mov esi, offset CountArray
-	mov eax, red + (gray * 16)
+UpdateScore PROC
+	mov eax,BOARDSIZE			; load the board width
+	mov bx,YClick			; get Y location of the click
+	                        
+							
+
+
+	sub bx,STARTY+2			
+
+	                         ; then lets change it to the postion in the array instead 
+							 ; positiony= (YClik-STARTY-2)
+
+	mul ebx						; multiply new Y coordinate in the array *BOARDSIZE
+
+	mov ebx,eax					; store in ebx
+
+	mov ax,XClick			; get X location of the click
+
+	sub ax,STARTX+2			   ; then lets change it to the postion in the array instead 
+							 ; positionx= (XClik-STARTX-2)
+
+	shr eax,1					; positionx= (XClik-STARTX-2)/2
+	                             ; we can do the division by sifting the bit 
+
+	add ebx,eax					; then we have to add the X location to get the offset in the scoreArray
+
+	mov al,scoreArray[ebx]		; get the score
+	cmp al,1					; is there a flag already placed ?
+	je clearFlag				; if click is made on a lcation where there is already a score
+	                            ; we are going to clear it 
+
+setFlag:						; otherwise, set a flag
+	cmp Score,0					; do we hace flags left?
+	je  byebye				; if so, bye 
+
+	inc al						; if no, increment so we get al=1
+
+	mov scoreArray[ebx],al		;  now we set the flag
+	dec Score					; we used a flag, score gets decreased 
+	jmp byebye				; byebye 
+
+clearFlag:
+	dec al						; decrement so we get al=0
+	mov scoreArray[ebx],al		; clear the flag
+	inc Score					; since we've cleared a flag, we increment the count	
+byebye:
+	ret
+UpdateScore ENDP
+
+;--------------------------------------------------------
+; Print the score at the top left of the board
+; Receives: Number of non used flags in Score
+; Returns:  Nothing
+;--------------------------------------------------------
+PrintScore PROC
+	mov dl, STARTX				; go to the top left (3,3)
+	mov dh, STARTY				; 
+	call Gotoxy					;
+	mov eax, red + (gray * 16)	; set same color as the board
 	call SetTextColor
-
-	mov currentY, STARTY
-	mov dh, currentY
-	mov dl, STARTX + 30
-	call GotoXY
-
-	mov edx, offset strCount
+	mov edx,offset strCount
 	call WriteString
-	mov edx, offset strSpace
-	mov ecx, 6
-Spaces1:
-	call WriteString
-	loop Spaces1
+	mov dl, STARTX				; go to the top left (3,3)
+	mov dh, STARTY				; 
+	movzx eax,Score				; get the current score into eax
+	cmp eax,10					; check if we need to print 1 or 2 digits
+	jl  onedig
+	add dl,1					; if the number is >=10, we leave one zero intact in the 3 digit count
+	jmp movecur
+onedig:
+    add dl,2					; if the number is <10, we leave two zeros intact in the 3 digit count
+movecur:
+	call Gotoxy					; move the cursor
+	call WriteDec				; display it
+	ret
+PrintScore ENDP
 
-	mov eax, yellow + (gray * 16)
-	call SetTextColor
-	mov edx, offset strFace
-	call WriteString
-	
-	mov edx, offset strSpace
-	mov ecx, 7
-Spaces2:
-	call WriteString
-	loop Spaces2
-
-	cmp lastTimeSeconds, 0			; Only need to draw this the first time. Once the timer is past 0, the ClockFunc will take care of this
-	jg DoNotDrawTimer
-	mov eax, red + (gray * 16)
-	call SetTextColor
-	mov edx, offset strTime
-	call WriteString
-DoNotDrawTimer:
-	
-	inc currentY
-	mov dh, currentY
-	mov dl, STARTX + 30
-	call GotoXY
-
-	mov eax, lightgray + (gray * 16)
-	call SetTextColor
-	mov edx, offset strSpace
-
-	mov eax, topLeft
-	call WriteChar
-
-	mov ecx, ((2*BOARDSIZE)+1)
-	mov eax, horizontal
-Top:
-	call WriteChar
-	loop Top
-	
-	mov eax, topRight
-	call WriteChar
-	
-	inc currentY
-	mov dh, currentY
-	mov dl, STARTX + 30
-	call GotoXY
-
-	mov ecx, BOARDSIZE
-
-
-Contents:
-	mov eax, vertical
-	call WriteChar
-	push ecx
-	
-	call PrintContents
-
-	pop ecx
-	mov eax, vertical
-	call WriteChar
-	
-	inc currentY
-	mov dh, currentY
-	mov dl, STARTX + 30
-	call GotoXY
-
-	loop Contents
-	
-	mov eax, bottomLeft
-	call WriteChar
-	mov eax, horizontal
-	mov ecx, ((2*BOARDSIZE)+1)
-Bottom:
-	call WriteChar
-	loop Bottom
-
-	mov eax, bottomRight
-	call WriteChar
-	
-	inc currentY
-	mov dh, currentY
-	mov dl, STARTX + 30
-	call GotoXY
-
-	mov eax, lightgray
-	call SetTextColor
-
+;--------------------------------------------------------
+; TEST TEST TEST TEST TEST TEST
+;--------------------------------------------------------
+TestProc PROC
+	mov eax, 0
+	mov esi, offset Xcord
+	mov ecx, lengthof Xcord
+LBLBLBLBLBL:
+	mov al, [esi]
+	call WriteInt
+	inc esi
+	loop LBLBLBLBLBL
 	ret
 TestProc ENDP
 
-
 END MAIN
-
