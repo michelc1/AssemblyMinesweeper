@@ -24,6 +24,18 @@ mines = 10
 ;-------------------------------
 
 .data
+	welcome1 db " __      __  ___   _       ___    ___    __  __   ___     _____    ___      ", 0
+	welcome2 db " \ \    / / | __| | |     / __|  / _ \  |  \/  | | __|   |_   _|  / _ \     ", 0
+	welcome3 db "  \ \/\/ /  | _|  | |__  | (__  | (_) | | |\/| | | _|      | |   | (_) |  _ ", 0
+	welcome4 db "   \_/\_/   |___| |____|  \___|  \___/  |_|  |_| |___|     |_|    \___/  ( )", 0
+	welcome5 db "                                                                         |/ ", 0
+	minesweeper1 db "    __  ___ ____ _   __ ______ _____ _       __ ______ ______ ____   ______ ____ ", 0
+	minesweeper2 db "   /  |/  //  _// | / // ____// ___/| |     / // ____// ____// __ \ / ____// __ \", 0
+	minesweeper3 db "  / /|_/ / / / /  |/ // __/   \__ \ | | /| / // __/  / __/  / /_/ // __/  / /_/ /", 0
+	minesweeper4 db " / /  / /_/ / / /|  // /___  ___/ / | |/ |/ // /___ / /___ / ____// /___ / _, _/ ", 0
+	minesweeper5 db "/_/  /_//___//_/ |_//_____/ /____/  |__/|__//_____//_____//_/    /_____//_/ |_|  ", 0
+	createdBy db "Created by: Darrien Kennedy, Chris Michel and Alex Robbins", 0
+
 	timerDigit0 db '0'		; Used to display timer
 	timerDigit1 db '0'		; Used to display timer
 	timerDigit2 db '0'		; Used to display timer
@@ -70,6 +82,8 @@ main PROC
 	
 	invoke GetStdHandle, STD_OUTPUT_HANDLE
 	invoke SetConsoleCursorInfo, eax, OFFSET cursorInfo		; Make the cursor invisible (no more ugly blinky thing)
+
+	call SplashScreen		; So preeettyyyyyyy
 
 	call InitMouse			; initialize the mouse
 
@@ -1147,6 +1161,46 @@ ElementFoundOnStack:
 	ret
 	
 CheckStackForVal ENDP
+
+;----------------------------------------------
+; SplashScreen
+; Displays a fun splash screen to start the game
+; Receives: nothing
+; Returns: nothing
+;----------------------------------------------
+SplashScreen PROC USES eax edx
+	mov eax, 100
+	mov edx, offset minesweeper1
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper3
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper4
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper5
+	call WriteString
+	call crlf
+	call Delay
+
+	mov ecx, 20
+SplashScreenLBL:
+	call crlf
+	loop SplashScreenLBL
+
+	mov edx, offset createdBy
+	call WriteString
+	call crlf
+	ret
+SplashScreen ENDP
 
 ;***********************************************************************
 ;--------------------------------------------------------
