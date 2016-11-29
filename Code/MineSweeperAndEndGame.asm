@@ -70,17 +70,9 @@ mines = 10
 	lastTimeSeconds dd 0		; Last time that was put onto the clock (in seconds)
 	clockMax dd 100				; What the clock will start at
 
-	;;;;;;;;;;;;;;clrLine db "          ",0	;;;; used only to debug the mouse position
-
 .code
 main PROC
 	invoke SetConsoleTitle, OFFSET CMDTitle		; Sets the title of the console window
-
-	;;;;invoke GetStdHandle, STD_OUTPUT_HANDLE		
-	;;;;;invoke SetConsoleCursorInfo, eax, OFFSET cursorInfo		; Make the cursor invisible (no more ugly blinky thing)
-
-	;;;;;call GetMseconds		; Initialize the timer		
-	;;;;;mov initialTime, eax
 
 	call InitMouse			; initialize the mouse
 
@@ -100,22 +92,22 @@ StartGame:
 	mov initialTime, eax
 		
 	call initializeGame
-	call DrawBoard
 	mov showClock, 0
 TryAgain:	
+	call DrawBoard
+	call PrintScore					; print current score
 	call GetMouseClick				; Pause until the first click is received
 	call ValidClicks
 	cmp eax, 1
 	jne TryAgain
-
-	; Wait here for first mouse click, once we get that first click we take it in, start the clock and keep on going 
-
-	call FillBoard		;*****Need to update this to not alow mines on first click location
-
-	call TestProc
-
-	call PrintScore					; print current score
+	cmp rightClick, 1				; If the 1st click was a right click, the board will not be made	
+	je SkipFillBoard	
+	call FillBoard
+	call TestProc					; FOR TESTING******************************************	
+SkipFillBoard:	
 	call ClearSpace	
+	cmp rightClick, 1				; We only want to make the board once a valid left click is received
+	je TryAgain
 
 	mov showClock, 1				; show clock
 
@@ -156,11 +148,11 @@ playAgain:
 	cmp al,'Y'
 	je StartGame
 	cmp al,'n'
-	je byebye
+	je byebyeMain
 	cmp al,'N'
-	je byebye
+	je byebyeMain
 	jmp playAgain
-byebye:
+byebyeMain:
 	Invoke ExitProcess, 0
 main ENDP
 
