@@ -63,9 +63,6 @@ mines = 10
 	; These are all used for the timer
 	initialTime dd 0			; Time when the program starts
 	lastTimeSeconds dd 0		; Last time that was put onto the clock (in seconds)
-	clockMax dd 100				; What the clock will start at
-
-	clrLine db "          ",0	;;;; used only to debug the mouse position
 
 .code
 main PROC
@@ -85,16 +82,21 @@ main PROC
 	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
 	NUMOFMINES = 10
 
-	call DrawBoard
 	mov showClock, 0
 TryAgain:	
+	call DrawBoard
 	call GetMouseClick				; Pause until the first click is received
 	call ValidClicks
 	cmp eax, 1
 	jne TryAgain
+	cmp rightClick, 1				; If the 1st click was a right click, the board will not be made	
+	je SkipFillBoard
 	call FillBoard					; Once we get the first click, we can place the mines
 	call TestProc	;***FOR TESTING*************************************************************************
+SkipFillBoard:
 	call ClearSpace
+	cmp rightClick, 1				; We only want to make the board once a valid left click is received
+	je TryAgain
 
 	mov showClock, 1				; show clock
 
@@ -796,9 +798,6 @@ AllBitsGood:
 	call GoToXY
 	call WriteChar
 
-	;cmp eax, clockMax
-	;je END THE GAME BECAUSE TIME IS UP!!
-
 NoUpdate:
 	ret
 ClockFunc ENDP
@@ -1148,7 +1147,6 @@ ElementFoundOnStack:
 	ret
 	
 CheckStackForVal ENDP
-
 
 ;***********************************************************************
 ;--------------------------------------------------------
