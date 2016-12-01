@@ -24,6 +24,28 @@ mines = 10
 ;-------------------------------
 
 .data
+	welcome1 db "     __      __  ___   _       ___    ___    __  __   ___     _____    ___  ", 0
+	welcome2 db "     \ \    / / | __| | |     / __|  / _ \  |  \/  | | __|   |_   _|  / _ \ ", 0
+	welcome3 db "      \ \/\/ /  | _|  | |__  | (__  | (_) | | |\/| | | _|      | |   | (_) |", 0
+	welcome4 db "       \_/\_/   |___| |____|  \___|  \___/  |_|  |_| |___|     |_|    \___/ ", 0
+	minesweeper1 db "    __  ___ ____ _   __ ______ _____ _       __ ______ ______ ____   ______ ____ ", 0
+	minesweeper2 db "   /  |/  //  _// | / // ____// ___/| |     / // ____// ____// __ \ / ____// __ \", 0
+	minesweeper3 db "  / /|_/ / / / /  |/ // __/   \__ \ | | /| / // __/  / __/  / /_/ // __/  / /_/ /", 0
+	minesweeper4 db " / /  / /_/ / / /|  // /___  ___/ / | |/ |/ // /___ / /___ / ____// /___ / _, _/ ", 0
+	minesweeper5 db "/_/  /_//___//_/ |_//_____/ /____/  |__/|__//_____//_____//_/    /_____//_/ |_|  ", 0
+	difficulty0 db "               Choose Difficulty:", 0
+	difficulty1 db "               ",218,"------------------------",191," ",218,"------------------------",191, 0
+	difficulty2 db "               |                        | |                        |", 0
+	
+	difficulty3 db "               |          ", 0
+	difficulty4 db "EASY", 0
+	difficulty5 db "          | |          ", 0
+	difficulty6 db "HARD", 0
+	difficulty7 db "          |", 0
+	
+	difficulty8 db "               ",192,"------------------------",217," ",192,"------------------------",217, 0
+	createdBy db "Created by: Darrien Kennedy, Chris Michel and Alex Robbins", 0
+
 	timerDigit0 db '0'		; Used to display timer
 	timerDigit1 db '0'		; Used to display timer
 	timerDigit2 db '0'		; Used to display timer
@@ -33,18 +55,18 @@ mines = 10
 	msgNewGame db "Play Again? (Y/N): ",0
 	Space db " "
 	strSpace db " ",0
-	ShowArray db 81 DUP(254)
-	CountArray db 81 DUP(0)
+	ShowArray db 225 DUP(254)
+	CountArray db 225 DUP(0)
 	
-	SpaceCheckStack dd 81 DUP(0)	; Used to clear spaces on the board after a click
+	SpaceCheckStack dd 225 DUP(0)	; Used to clear spaces on the board after a click
 	SpaceCheckStackSize db 0		; Same^
 	StackValFound db 0
 	
-	MineLocations db 10 DUP(?) 
+	MineLocations db 35 DUP(?) 
 	SpaceCount db 0
 	currentY db ?
-	Xcord db 32,34,36,38,40,42,44,46,48		; All valid X coordinates of the 9x9 board
-	Ycord db 8,9,10,11,12,13,14,15,16		; All valid Y coordinates of the 9x9 board
+	Xcord db 32,34,36,38,40,42,44,46,48,50,52,54,56,58,60		; All valid X coordinates of the 9x9/15x15 board
+	Ycord db 8,9,10,11,12,13,14,15,16,17,18,19,20,21,22		; All valid Y coordinates of the 9x9/15x15 board
 
 	CMDTitle db "Minesweeper", 0		; Console window title
 	cursorInfo CONSOLE_CURSOR_INFO <1,0>   ; cursor-size = 1 (irrelevant), cursor-visible = 0/false
@@ -68,7 +90,14 @@ mines = 10
 	; These are all used for the timer
 	initialTime dd 0			; Time when the program starts
 	lastTimeSeconds dd 0		; Last time that was put onto the clock (in seconds)
-	clockMax dd 100				; What the clock will start at
+
+	BOARDSIZE_B db 0			; BYTE
+	BOARDSIZE_D dd 0			; DWORD
+	BOARDSIZESQUARED dd 0		; DWORD
+	BOARDSIZETEMP dd 0			; DWORD
+	NUMOFMINES dd 0				; DWORD
+
+	splashScreenTimer dd 100	; The first time the game opens, the splash screen will move slow. After that it will be fast
 
 .code
 main PROC
@@ -79,8 +108,8 @@ main PROC
 	call Randomize				; So we can get random numbers for mine location generation
 	STARTX = 30					; The X coordinate of the top left corner of the board
 	STARTY = 6					; The Y coordinate of the top left corner of the board
-	BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
-	NUMOFMINES = 10
+	;BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
+	;NUMOFMINES = 10
 
 StartGame:
 	call clrScr
@@ -88,11 +117,35 @@ StartGame:
 	invoke GetStdHandle, STD_OUTPUT_HANDLE
 	invoke SetConsoleCursorInfo, eax, OFFSET cursorInfo		; Make the cursor invisible (no more ugly blinky thing)
 
+	mov showClock, 0
+
+	call SplashScreen
+WaitForSplashScreenClick:
+	call GetMouseClick
+	call SplashScreenClick
+	cmp eax, 0
+	je WaitForSplashScreenClick
+	cmp eax, 1
+	jne ChoseHard
+	mov BOARDSIZE_B, 9
+	mov BOARDSIZE_D, 9
+	mov BOARDSIZESQUARED, 81
+	mov NUMOFMINES, 10 
+	jmp GameModeMade
+ChoseHard:
+	mov BOARDSIZE_B, 15
+	mov BOARDSIZE_D, 15
+	mov BOARDSIZESQUARED, 225
+	mov NUMOFMINES, 35 
+GameModeMade:
+
+	call ClrScr
+	
 	call GetMseconds		; Initialize the timer
 	mov initialTime, eax
 		
 	call initializeGame
-	mov showClock, 0
+
 TryAgain:	
 	call DrawBoard
 	call PrintScore					; print current score
@@ -130,8 +183,8 @@ MainLoop:
 	mov eax, white + (black* 16) ; set the color of playagain 
 	call SetTextColor
 
-	invoke GetStdHandle, STD_OUTPUT_HANDLE
-	invoke SetConsoleCursorInfo, eax, OFFSET cursorEnable	; Make the cursor visible
+	;invoke GetStdHandle, STD_OUTPUT_HANDLE
+	;invoke SetConsoleCursorInfo, eax, OFFSET cursorEnable	; Make the cursor visible
 
 playAgain:
 	mov dl,0
@@ -171,15 +224,15 @@ initializeGame PROC
 	mov timerDigit1,'0'
 	mov timerDigit2,'0'
 
-	mov ecx,81
-	mov edi,offset ShowArray
-	mov al,254
+	mov ecx, lengthof ShowArray		; Always want to clear the whole thing
+	mov edi, offset ShowArray
+	mov al, 254
 l1:
 	mov [edi],al
 	inc edi
 	loop l1
 
-	mov ecx,81
+	mov ecx, lengthof CountArray		; Always want to clear the whole thing
 	mov edi,offset CountArray
 	mov al,0
 l2:
@@ -187,7 +240,7 @@ l2:
 	inc edi
 	loop l2
 	
-	mov ecx,81
+	mov ecx, lengthof SpaceCheckStack	; Always want to clear the whole thing
 	mov edi,offset SpaceCheckStack
 	mov al,0
 l3:
@@ -198,7 +251,7 @@ l3:
 	mov SpaceCheckStackSize,0		
 	mov StackValFound,0
 	
-	mov ecx,10
+	mov ecx, lengthof MineLocations		; Always want to clear the whole thing
 	mov edi,offset MineLocations 
 	mov al,0
 l4:
@@ -210,7 +263,8 @@ l4:
 
 	mov showClock,0
 
-	mov Score,10		
+	mov al, BYTE PTR NUMOFMINES
+	mov Score,al		
 	mov GameOver,0
 
 	mov initialTime,0
@@ -241,6 +295,9 @@ DrawBoard PROC USES eax ecx edx
 	call WriteString
 	mov edx, offset strSpace
 	mov ecx, 6
+	cmp BOARDSIZE_D, 9
+	je Spaces1
+	add ecx, 6
 Spaces1:
 	call WriteString
 	loop Spaces1
@@ -252,6 +309,9 @@ Spaces1:
 	
 	mov edx, offset strSpace
 	mov ecx, 7
+	cmp BOARDSIZE_D, 9
+	je Spaces2
+	add ecx, 6
 Spaces2:
 	call WriteString
 	loop Spaces2
@@ -275,8 +335,12 @@ DoNotDrawTimer:
 
 	mov eax, topLeft
 	call WriteChar
-
-	mov ecx, ((2*BOARDSIZE)+1)
+	
+	mov eax, BOARDSIZE_D
+	mov BOARDSIZETEMP, eax
+	add BOARDSIZETEMP, eax
+	inc BOARDSIZETEMP
+	mov ecx, BOARDSIZETEMP	; BOARDSIZE*2 + 1
 	mov eax, horizontal
 Top:
 	call WriteChar
@@ -290,7 +354,7 @@ Top:
 	mov dl, STARTX
 	call GotoXY
 
-	mov ecx, BOARDSIZE
+	mov ecx, BOARDSIZE_D
 
 Contents:
 	mov eax, vertical
@@ -313,7 +377,7 @@ Contents:
 	mov eax, bottomLeft
 	call WriteChar
 	mov eax, horizontal
-	mov ecx, ((2*BOARDSIZE)+1)
+	mov ecx, BOARDSIZETEMP	; hasnt changed yet, so its still BOARDSIZE*2 + 1
 Bottom:
 	call WriteChar
 	loop Bottom
@@ -342,7 +406,7 @@ DrawBoard ENDP
 PrintContents PROC 
 
 	mov edx, offset strSpace
-	mov ecx, BOARDSIZE
+	mov ecx, BOARDSIZE_D
 	call WriteString
 
 Inner:
@@ -473,10 +537,10 @@ AssignColor ENDP
 FillBoard PROC
 	mov eax, 0
 	mov esi, offset MineLocations			; Get the first location in our MineLocations array
-	mov ecx, lengthof MineLocations			; We need as many mines as the length of our MineLocations array 
+	mov ecx, NUMOFMINES						; We need as many mines as the length of our MineLocations array 
 	mov edx, 0
 GetNums:
-	mov eax, (BOARDSIZE*BOARDSIZE)			; Get a random number that corresponds with a space on the board
+	mov eax, BOARDSIZESQUARED				; Get a random number that corresponds with a space on the board
 	call randomRange
 	mov [esi], al							; Put the random number into our MineLocations array
 
@@ -489,7 +553,7 @@ GetNums:
 	cmp eax, edx			; Check space
 	je GetNums
 
-	sub edx, BOARDSIZE
+	sub edx, BOARDSIZE_D
 	cmp eax, edx			; Check above space
 	je GetNums	
 	
@@ -501,7 +565,7 @@ GetNums:
 	cmp eax, edx			; Check above and to right of space
 	je GetNums	
 
-	add edx, BOARDSIZE
+	add edx, BOARDSIZE_D
 	cmp eax, edx			; Check to right of space
 	je GetNums
 
@@ -509,7 +573,7 @@ GetNums:
 	cmp eax, edx			; Check to left of space
 	je GetNums	
 
-	add edx, BOARDSIZE
+	add edx, BOARDSIZE_D
 	cmp eax, edx			; Check below and to left of space
 	je GetNums
 
@@ -528,7 +592,7 @@ GetNums:
 
 	 ; We want this inner count to start at 0 and go to 9 (Becasue: for the Nth mine created, we 
 	 ;	need to check it against mines 1->(N-1) to make sure it is not a duplicate of any of them)
-	mov edx, lengthof MineLocations			
+	mov edx, NUMOFMINES			
 	sub edx, ecx
 	mov ecx, edx 
 
@@ -553,7 +617,7 @@ SkipFirst:
 	mov esi, offset MineLocations			; Starting element of mines array
 	mov eax, 0
 	mov ebx, 0
-	mov ecx, lengthof MineLocations			; Will need to be some sort of variable indicating the number of mines to make
+	mov ecx, NUMOFMINES					; Will need to be some sort of variable indicating the number of mines to make
 PutMines:									  
 	mov edi, offset CountArray				; Starting element of board numbers array
 	mov bl, [esi]
@@ -565,7 +629,7 @@ PutMines:
 
 	; Now we need to go through each remaining location in the count-array and count how many mines are around them
 
-	mov ecx, lengthof CountArray
+	mov ecx, BOARDSIZESQUARED
 	mov eax, 0						; Will hold offset of space around current space (above, below...) to be checked
 	mov ebx, 0						; Will hold what is in that (^) space 
 	mov edx, 0						; Will be used to find row/col #	
@@ -574,7 +638,10 @@ PutNums:
 
 	mov edx, ecx
 	neg edx
-	add edx, BOARDSIZE*BOARDSIZE		; edx will go from 0 to 99
+	push ecx
+	mov ecx, BOARDSIZESQUARED
+	add edx, ecx		; edx will go from 0 to 99
+	pop ecx
 
 	mov esi, offset CountArray
 	add esi, edx
@@ -586,10 +653,15 @@ PutNums:
 	add esi, edx					; esi will now point at the space directly above the current space
 
 	; DIRECTLY ABOVE
-	cmp edx, (BOARDSIZE - 1)
+	push ebx
+	mov ebx, BOARDSIZE_D
+	mov BOARDSIZETEMP, ebx
+	dec BOARDSIZETEMP
+	pop ebx
+	cmp edx, BOARDSIZETEMP
 	jle SkipUpper
 		; If we get here, it means we are not on the top row of the board, and so we can check AT LEAST the space directly above the current space
-	sub esi, BOARDSIZE
+	sub esi, BOARDSIZE_D
 	mov bl, [esi]
 	cmp bl, 0FFh				; Check for a mine 
 	jne NoMineAbove
@@ -598,7 +670,7 @@ NoMineAbove:
 
 	; ABOVE AND TO THE LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position by BOARDSIZE
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipUpperLeft
@@ -615,7 +687,7 @@ SkipUpperLeft:
 	; ABOVE AND TO THE RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipUpperRight
@@ -628,12 +700,12 @@ SkipUpperLeft:
 	inc SpaceCount				; If mine was found, increment the counter
 NoMineAboveAndToRight:
 SkipUpperRight:
-	add esi, BOARDSIZE					; esi will now point to our original location no matter what
+	add esi, BOARDSIZE_D		; esi will now point to our original location no matter what
 SkipUpper:
 
 	; CHECK LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipLeft
@@ -650,7 +722,7 @@ SkipLeft:
 	; CHECK RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipRight
@@ -665,10 +737,15 @@ NoMineToRight:
 SkipRight:
 
 	; DIRECTLY BELOW
-	cmp edx, ((BOARDSIZE*BOARDSIZE) - BOARDSIZE)
+	push ebx
+	mov ebx, BOARDSIZESQUARED
+	sub ebx, BOARDSIZE_D
+	mov BOARDSIZETEMP, ebx
+	pop ebx
+	cmp edx, BOARDSIZETEMP		; compare to ((BOARDSIZE*BOARDSIZE) - BOARDSIZE)
 	jge SkipLower
 		; If we get here, it means we are not on the bottom row of the board, and so we can check AT LEAST the space directly below the current space
-	add esi, BOARDSIZE			; esi will now point at the space directly below the current space
+	add esi, BOARDSIZE_D		; esi will now point at the space directly below the current space
 	mov bl, [esi]
 	cmp bl, 0FFh				; Check for a mine 
 	jne NoMineBelow
@@ -677,7 +754,7 @@ NoMineBelow:
 
 	; BELOW AND TO THE LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipLowerLeft
@@ -694,7 +771,7 @@ SkipLowerLeft:
 	; BELOW AND TO THE RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipLowerRight
@@ -707,7 +784,7 @@ SkipLowerLeft:
 	inc SpaceCount				; If mine was found, increment the counter
 NoMineBelowAndToRight:
 SkipLowerRight:
-	sub esi, BOARDSIZE			; esi will now point to our original location no matter what
+	sub esi, BOARDSIZE_D		; esi will now point to our original location no matter what
 SkipLower:
 
 	; Put the number in its place
@@ -806,7 +883,7 @@ GetMouseClick ENDP
 ValidClicks proc
 	mov esi, offset Xcord		; array of vaild X cord 
 	mov edi, offset Ycord		; array of vaild Y cord 
-	mov ecx, lengthof Xcord   
+	mov ecx, BOARDSIZE_D   
 
 searchXcord:
 
@@ -821,7 +898,7 @@ searchXcord:
 	ret				   ; if X cord was not found, we are going to stop search for vaild, we know it does not exist 
 
 yValid:
-	mov ecx, lengthof Ycord
+	mov ecx, BOARDSIZE_D
 searchYcord:
 
 	mov ax, YClick 
@@ -861,6 +938,10 @@ ClockFunc PROC USES eax ebx edx
 
 	mov dh, 6					; If the time HAS changed, update the clock...
 	mov dl, 48
+	cmp BOARDSIZE_D, 9
+	je EasyClock
+	add dl, 12
+EasyClock:
 	call GoToXY
 
 	mov ebx, eax				; Set the color of the timer
@@ -902,9 +983,6 @@ AllBitsGood:
 	call GoToXY
 	call WriteChar
 
-	;cmp eax, clockMax
-	;je END THE GAME BECAUSE TIME IS UP!!
-
 NoUpdate:
 	ret
 ClockFunc ENDP
@@ -932,7 +1010,7 @@ GetMouseClickOffset PROC USES ebx ecx edx
 	mov cx, 2	
 	div cx							; Column will now be in ax
 	
-	mov cx, BOARDSIZE
+	mov cx, WORD PTR BOARDSIZE_D
 	xchg ax, bx
 	mul cx							; Because we are dealing with small numbers, we can ignore dx and assume the while product is in ax
 
@@ -1039,10 +1117,15 @@ CheckSpaces:
 	
 	
 	; DIRECTLY ABOVE
-	cmp edx, (BOARDSIZE - 1)
+	push ebx
+	mov ebx, BOARDSIZE_D
+	mov BOARDSIZETEMP, ebx
+	dec BOARDSIZETEMP
+	pop ebx
+	cmp edx, BOARDSIZETEMP		; compare to (BOARDSIZE - 1)
 	jle SkipUpper
 		; If we get here, it means we are not on the top row of the board, and so we can look at AT LEAST the space directly above the current space
-	sub esi, BOARDSIZE
+	sub esi, BOARDSIZE_D
 	
 	call CheckStackForVal	
 	cmp StackValFound, 1    
@@ -1055,7 +1138,7 @@ AboveAlreadyOnStack:
 
 	; ABOVE AND TO THE LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position by BOARDSIZE
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipUpperLeft
@@ -1077,7 +1160,7 @@ SkipUpperLeft:
 	; ABOVE AND TO THE RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipUpperRight
@@ -1095,12 +1178,12 @@ SkipUpperLeft:
 AboveAndToRightAlreadyOnStack:
 	dec esi						; Put esi back to where it was
 SkipUpperRight:
-	add esi, BOARDSIZE					; esi will now point to our original location no matter what
+	add esi, BOARDSIZE_D					; esi will now point to our original location no matter what
 SkipUpper:
 
 	; CHECK LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipLeft
@@ -1122,7 +1205,7 @@ SkipLeft:
 	; CHECK RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipRight
@@ -1142,10 +1225,15 @@ RightAlreadyOnStack:
 SkipRight:
 
 	; DIRECTLY BELOW
-	cmp edx, ((BOARDSIZE*BOARDSIZE) - BOARDSIZE)
+	push ebx
+	mov ebx, BOARDSIZESQUARED
+	sub ebx, BOARDSIZE_D
+	mov BOARDSIZETEMP, ebx
+	pop ebx
+	cmp edx, BOARDSIZETEMP		; compare to ((BOARDSIZE*BOARDSIZE) - BOARDSIZE)
 	jge SkipLower
 		; If we get here, it means we are not on the bottom row of the board, and so we can check AT LEAST the space directly below the current space
-	add esi, BOARDSIZE			; esi will now point at the space directly below the current space
+	add esi, BOARDSIZE_D			; esi will now point at the space directly below the current space
 	
 	call CheckStackForVal	
 	cmp StackValFound, 1    
@@ -1158,7 +1246,7 @@ BelowAlreadyOnStack:
 
 	; BELOW AND TO THE LEFT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the left side of the board and so has no spaces to the left
 	je SkipLowerLeft
@@ -1180,7 +1268,7 @@ SkipLowerLeft:
 	; BELOW AND TO THE RIGHT
 	mov ax, dx					; edx will always be smaller than a word so this is fine
 	add ax, 1					; Because the right column will always be 19-99
-	mov bl, BOARDSIZE
+	mov bl, BOARDSIZE_B
 	div bl						; Divide our current position (minus 9) by 10
 	cmp ah, 0					; If there was no remainder, then it was a multiple of 10 and so is on the right side of the board and so has no spaces to the right
 	je SkipLowerRight
@@ -1198,7 +1286,7 @@ SkipLowerLeft:
 BelowAndToRightAlreadyOnStack:
 	dec esi						; Put esi back to where it was
 SkipLowerRight:
-	sub esi, BOARDSIZE			; esi will now point to our original location no matter what
+	sub esi, BOARDSIZE_D			; esi will now point to our original location no matter what
 SkipLower:
 ENDCheckSpaces:
 
@@ -1266,6 +1354,173 @@ ElementFoundOnStack:
 	
 CheckStackForVal ENDP
 
+;----------------------------------------------
+; SplashScreen
+; Displays a fun splash screen to start the game
+; Receives: nothing
+; Returns: nothing
+;----------------------------------------------
+SplashScreen PROC USES eax edx
+	mov eax, lightCyan
+	call SetTextColor
+	
+	mov eax, splashScreenTimer	
+
+	mov edx, offset welcome1
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset welcome2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset welcome3
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset welcome4
+	call WriteString
+	call crlf
+	call Delay
+
+	mov edx, offset minesweeper1
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper3
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper4
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset minesweeper5
+	call WriteString
+	call crlf
+	call crlf
+
+	mov eax, lightGray
+	call SetTextColor	
+	mov eax, splashScreenTimer	
+
+	mov edx, offset difficulty0
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset difficulty1
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset difficulty2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset difficulty2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset difficulty2
+	call WriteString
+	call crlf
+	call Delay
+
+	mov edx, offset difficulty3
+	call WriteString
+	mov eax, lightGreen
+	call SetTextColor
+	mov edx, offset difficulty4 ;e
+	call WriteString
+	mov eax, lightgray
+	call SetTextColor
+	mov edx, offset difficulty5
+	call WriteString
+	mov eax, lightRed
+	call SetTextColor
+	mov edx, offset difficulty6 ;h
+	call WriteString
+	mov eax, lightgray
+	call SetTextColor
+	mov edx, offset difficulty7
+	call WriteString
+
+	mov eax, splashScreenTimer		; Because we messed up eax when we switched colors
+
+	call crlf
+	call Delay
+	mov edx, offset difficulty2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset difficulty2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset difficulty2
+	call WriteString
+	call crlf
+	call Delay
+	mov edx, offset difficulty8
+	call WriteString
+	call crlf
+	call Delay
+
+	call crlf
+	call crlf
+	call crlf
+	call crlf
+	call crlf
+
+	mov eax, lightmagenta
+	call SetTextColor	
+
+	mov edx, offset createdBy
+	call WriteString
+	call crlf
+
+	mov splashScreenTimer, 0	; After the initial opening of the game, the splash screen should load quick so the user doesnt have to keep waiting every time they play
+
+	ret
+SplashScreen ENDP
+
+;--------------------------------------------
+; SplashScreenClick
+; Checks to see if the users click on the splash
+;  screen was valid (either easy or hard)
+; Receives: X/Y coords in XClick and YClick
+; Returns: 1 in eax for easy
+;		   2 in eax for hard
+;          0 in eax for invalid click
+;--------------------------------------------
+SplashScreenClick PROC
+	cmp YClick, 11				; Top
+	jl NotValidSplashClick
+	cmp YClick, 19				; Bottom
+	jg NotValidSplashClick
+	cmp XClick, 15				; Left
+	jl NotValidSplashClick
+	cmp XClick, 67				; Right
+	jg NotValidSplashClick
+
+	; It was a valid click. Now get which one was chosen
+	cmp XClick, 40				; Middle
+	jle SetEasy
+	cmp XClick, 42
+	jl NotValidSplashClick
+	mov eax, 2		; Hard
+	ret
+SetEasy:
+	mov eax, 1		; Easy
+	ret
+NotValidSplashClick:
+	mov eax, 0		; Invalid
+	ret
+SplashScreenClick ENDP
+
 ;***********************************************************************
 ;--------------------------------------------------------
 ; TEST DISPLAY!!!
@@ -1279,13 +1534,16 @@ TestProc PROC USES eax ecx edx
 
 	mov currentY, STARTY
 	mov dh, currentY
-	mov dl, STARTX + 30
+	mov dl, STARTX + 40
 	call GotoXY
 
 	mov edx, offset strCount
 	call WriteString
 	mov edx, offset strSpace
 	mov ecx, 6
+	cmp BOARDSIZE_D, 9
+	je Spaces1
+	add ecx, 6
 Spaces1:
 	call WriteString
 	loop Spaces1
@@ -1297,6 +1555,9 @@ Spaces1:
 	
 	mov edx, offset strSpace
 	mov ecx, 7
+	cmp BOARDSIZE_D, 9
+	je Spaces2
+	add ecx, 6
 Spaces2:
 	call WriteString
 	loop Spaces2
@@ -1311,7 +1572,7 @@ DoNotDrawTimer:
 	
 	inc currentY
 	mov dh, currentY
-	mov dl, STARTX + 30
+	mov dl, STARTX + 40
 	call GotoXY
 
 	mov eax, lightgray + (gray * 16)
@@ -1321,7 +1582,11 @@ DoNotDrawTimer:
 	mov eax, topLeft
 	call WriteChar
 
-	mov ecx, ((2*BOARDSIZE)+1)
+	mov eax, BOARDSIZE_D
+	mov BOARDSIZETEMP, eax
+	add BOARDSIZETEMP, eax
+	inc BOARDSIZETEMP
+	mov ecx, BOARDSIZETEMP	; BOARDSIZE*2 + 1
 	mov eax, horizontal
 Top:
 	call WriteChar
@@ -1332,10 +1597,10 @@ Top:
 	
 	inc currentY
 	mov dh, currentY
-	mov dl, STARTX + 30
+	mov dl, STARTX + 40
 	call GotoXY
 
-	mov ecx, BOARDSIZE
+	mov ecx, BOARDSIZE_D
 
 
 Contents:
@@ -1351,7 +1616,7 @@ Contents:
 	
 	inc currentY
 	mov dh, currentY
-	mov dl, STARTX + 30
+	mov dl, STARTX + 40
 	call GotoXY
 
 	loop Contents
@@ -1359,7 +1624,7 @@ Contents:
 	mov eax, bottomLeft
 	call WriteChar
 	mov eax, horizontal
-	mov ecx, ((2*BOARDSIZE)+1)
+	mov ecx, BOARDSIZETEMP	; hasnt changed yet, so its still BOARDSIZE*2 + 1
 Bottom:
 	call WriteChar
 	loop Bottom
@@ -1369,7 +1634,7 @@ Bottom:
 	
 	inc currentY
 	mov dh, currentY
-	mov dl, STARTX + 30
+	mov dl, STARTX + 40
 	call GotoXY
 
 	mov eax, lightgray
@@ -1392,19 +1657,19 @@ PrintScore PROC
 
 	mov eax, red + (gray * 16)	; set same color as the board
 	call SetTextColor
-	mov edx,offset strCount
+	mov edx, offset strCount
 	call WriteString
 	mov dl, STARTX				; go to the top left (3,3)
 	mov dh, STARTY				; 
 
 
 	movsx eax,Score				; lets move our current flag score into ax 
-	cmp eax,10					; 10 is going to tell us we need two digits, otherwise only one digit needs to be printed 
+	cmp eax, 10					; 10 is going to tell us we need two digits, otherwise only one digit needs to be printed 
 	jl  onedigit
-	add dl,1					; if the number is >=10, there is only going to be one zero in the third placeholder 
+	add dl, 1					; if the number is >=10, there is only going to be one zero in the third placeholder 
 	jmp move
 onedigit:
-    add dl,2					; if the number is <10, there is going to be two zero in the first two placeholders, since we are only dealing with one digit
+    add dl, 2					; if the number is <10, there is going to be two zero in the first two placeholders, since we are only dealing with one digit
 move:
 	call Gotoxy					; move the cursor
 	call WriteDec				; write the digit 
@@ -1421,7 +1686,7 @@ ShowMines PROC
 	mov esi, offset MineLocations			; we are going to point at the fitst location in MineLocations array
 	          ;every byte in the array represents one position from 0 to 81
 	mov ecx, lengthof MineLocations			; get the number of mines that we have MineLocations array 
-	mov bl,9 ; the width of our board 
+	mov bl,BOARDSIZE_B ; the width of our board 
 showM:
                   ; to find the remaining postions of the mine 
 				  ; we will take in the number read in from the array  and divide it by the width of our board 
