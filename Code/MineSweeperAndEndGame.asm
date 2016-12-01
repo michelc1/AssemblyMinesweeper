@@ -34,7 +34,7 @@ mines = 10
 	minesweeper4 db " / /  / /_/ / / /|  // /___  ___/ / | |/ |/ // /___ / /___ / ____// /___ / _, _/ ", 0
 	minesweeper5 db "/_/  /_//___//_/ |_//_____/ /____/  |__/|__//_____//_____//_/    /_____//_/ |_|  ", 0
 	difficulty0 db "               Choose Difficulty:", 0
-	difficulty1 db "               ",218,"------------------------",191," ",218,"------------------------",191, 0
+	difficulty1 db "               ",218, 24 DUP(196), 191," ",218, 24 DUP(196), 191, 0
 	difficulty2 db "               |                        | |                        |", 0
 	
 	difficulty3 db "               |          ", 0
@@ -43,8 +43,29 @@ mines = 10
 	difficulty6 db "HARD", 0
 	difficulty7 db "          |", 0
 	
-	difficulty8 db "               ",192,"------------------------",217," ",192,"------------------------",217, 0
+	difficulty8 db "               ",192, 24 DUP(196), 217," ",192, 24 DUP(196), 217, 0
 	createdBy db "Created by: Darrien Kennedy, Chris Michel and Alex Robbins", 0
+
+	youWin1 db "           __   __ ___   _   _  __      __ ___  _  _  _ ", 0
+	youWin2 db "           \ \ / // _ \ | | | | \ \    / /|_ _|| \| || |", 0
+	youWin3 db "            \ V /| (_) || |_| |  \ \/\/ /  | | | .` ||_|", 0
+	youWin4 db "             |_|  \___/  \___/    \_/\_/  |___||_|\_|(_)", 0
+
+	youLose1 db "           __   __ ___   _   _   _     ___   ___  ___ ", 0
+	youLose2 db "           \ \ / // _ \ | | | | | |   / _ \ / __|| __|", 0
+	youLose3 db "            \ V /| (_) || |_| | | |__| (_) |\__ \| _| ", 0
+	youLose4 db "             |_|  \___/  \___/  |____|\___/ |___/|___|", 0
+
+	helpInfo1 db "HELP:", 0
+	helpInfo2 db "-Left-click spaces to reveal a number or a mine", 0
+	helpInfo3 db "-Right-click to place flags on spaces you think are safe", 0
+	helpInfo4 db "-Right-click a flag again to remove it", 0
+	helpInfo5 db "-Numbers or dots indicate the number of mines adjacent", 0
+	helpInfo52 db "   to a space (dots are equal to 0)", 0
+	helpInfo6 db "-Left-Clicking a mine will end the game in a loss", 0
+	helpInfo7 db "-Win by clearing all the spaces that are not mines", 0
+	helpInfo8 db "-Click the smiley face to start a new game", 0
+	helpInfo9 db "Good Luck!", 0
 
 	timerDigit0 db '0'		; Used to display timer
 	timerDigit1 db '0'		; Used to display timer
@@ -70,7 +91,6 @@ mines = 10
 
 	CMDTitle db "Minesweeper", 0		; Console window title
 	cursorInfo CONSOLE_CURSOR_INFO <1,0>   ; cursor-size = 1 (irrelevant), cursor-visible = 0/false
-	cursorEnable CONSOLE_CURSOR_INFO <10,1>   ; cursor-size = 1 (irrelevant), cursor-visible = 1/true
 
 	; These are all used to capture mouse clicks
 	rHnd HANDLE ?						
@@ -99,9 +119,17 @@ mines = 10
 
 	splashScreenTimer dd 100	; The first time the game opens, the splash screen will move slow. After that it will be fast
 
-	strWin db "You win",0
-	strLoss db "You lost",0
 	winCount db 0
+
+	helpIsDisplayed db 0			; Whether or not the help page is displayed
+	helpButton1 db " ", 218, 6 DUP(196), 191, 0
+	helpButton2 db " | HELP |", 0
+	helpButton3 db " ", 192, 6 DUP(196), 217, 0
+
+	hideButton db " | HIDE |", 0
+
+	SmileReset db 0			; Indicates if the smiley has been pressed to reset the game
+
 .code
 main PROC
 	invoke SetConsoleTitle, OFFSET CMDTitle		; Sets the title of the console window
@@ -111,10 +139,10 @@ main PROC
 	call Randomize				; So we can get random numbers for mine location generation
 	STARTX = 30					; The X coordinate of the top left corner of the board
 	STARTY = 6					; The Y coordinate of the top left corner of the board
-	;BOARDSIZE = 9				; Width of board (will need to make this changeable in game somehow...)
-	;NUMOFMINES = 10
 
 StartGame:
+	mov eax, 0
+	call SetTextColor		; So screen will clear as black
 	call clrScr
 
 	invoke GetStdHandle, STD_OUTPUT_HANDLE
@@ -141,7 +169,8 @@ ChoseHard:
 	mov BOARDSIZESQUARED, 225
 	mov NUMOFMINES, 35 
 GameModeMade:
-
+	mov eax, 0
+	call SetTextColor		; So screen will clear as black
 	call ClrScr
 	
 	call GetMseconds		; Initialize the timer
@@ -154,12 +183,16 @@ TryAgain:
 	call PrintScore					; print current score
 	call GetMouseClick				; Pause until the first click is received
 	call ValidClicks
+
+	cmp SmileReset, 1			; Reset the game if smiley is clicked
+	je StartGame
+
 	cmp eax, 1
 	jne TryAgain
 	cmp rightClick, 1				; If the 1st click was a right click, the board will not be made	
 	je SkipFillBoard	
 	call FillBoard
-	call TestProc					; FOR TESTING******************************************	
+	;;;call TestProc					; *******UNCOMMENT FOR TESTING*******
 SkipFillBoard:	
 	call ClearSpace	
 	cmp rightClick, 1				; We only want to make the board once a valid left click is received
@@ -175,7 +208,8 @@ MainLoop:
 
 	call ValidClicks
 	
-	
+	cmp SmileReset, 1			; Reset the game if smiley is clicked
+	je StartGame
 
 	cmp eax,0			; check if the user clicked a valid position
 	je	MainLoop		; if he didn't, then keep waiting
@@ -184,16 +218,19 @@ MainLoop:
 	call DrawBoard
 	call IsGameOver
 
-	cmp GameOver,1		; is the game over?
-	jne MainLoop         ; if not play game
+	cmp GameOver, 0			; Has the game been lost
+	je MainLoop				; If not play game
 
-	call showMines			; game is now over lets show the mines
-
+	cmp GameOver, 1
+	jne GameWonDontShowMines
+	call showMines			; Game is now over lets show the mines
+	call YouLoseDisplay
+	jmp GameWasLostSkipWonMsg
+GameWonDontShowMines:
+	call YouWinDisplay
+GameWasLostSkipWonMsg:
 	mov eax, white + (black* 16) ; set the color of playagain 
 	call SetTextColor
-
-	;invoke GetStdHandle, STD_OUTPUT_HANDLE
-	;invoke SetConsoleCursorInfo, eax, OFFSET cursorEnable	; Make the cursor visible
 
 playAgain:
 	mov dl,0
@@ -215,29 +252,26 @@ playAgain:
 	je byebyeMain
 	jmp playAgain
 byebyeMain:
+	call ClrScr
 	Invoke ExitProcess, 0
 main ENDP
 
-
-
-
-
-;-----------------------------
+;----------------------------------
 ; IsGameOver
-; Checks to see if the game is over
-;-----------------------------
+; Checks to see if the game has been won
+; Receives: nothing
+; Returns: 2 in GameOver if game was won
+;----------------------------------
 IsGameOver PROC uses eax ebx ecx edx edi esi
 	mov ebx, 0
 	mov esi, offset ShowArray
-	mov ecx, lengthof ShowArray
+	mov ecx, BOARDSIZESQUARED
 	mov eax, 0
 	mov winCount, 0
 
 
 EndGameCheck:
 	mov bl, [esi]
-	cmp bl, 0FFh
-	je Loss
 	cmp bl, 0Fh
 	je WinCheck
 	cmp bl, 254
@@ -249,7 +283,7 @@ WinCheck:
 	push ecx
 	mov edx, esi
 	sub edx, offset showArray
-	mov ecx, lengthof MineLocations
+	mov ecx, NUMOFMINES
 MineInLocationCheck:
 	mov bl, [edi]
 	cmp dl, bl		; check if a mine occupies the position
@@ -269,23 +303,7 @@ BotOfEndGameLoop:
 	loop EndGameCheck
 
 Win:
-	mov dh, 0
-	mov dl, 0
-	call GoToXY
-	mov edx, offset strWin
-	call WriteString
-	call Crlf
-	Invoke ExitProcess,0
-
-Loss:
-	mov dh, 0
-	mov dl, 0
-	call GoToXY
-	mov edx, offset strLoss
-	call WriteString
-	call Crlf
-	Invoke ExitProcess,0
-
+	mov GameOver, 2
 
 	ret
 IsGameOver ENDP
@@ -345,6 +363,10 @@ l4:
 
 	mov showClock,0
 
+	mov helpIsDisplayed, 0
+
+	mov SmileReset, 0
+
 	mov al, BYTE PTR NUMOFMINES
 	mov Score,al		
 	mov GameOver,0
@@ -363,7 +385,27 @@ initializeGame ENDP
 ; Uses: eax ecx edx
 ;----------------------------------
 DrawBoard PROC USES eax ecx edx
-	
+	mov dx, 0100h
+	call GoToXY
+	mov eax, lightGray
+	call SetTextColor
+	mov edx, offset helpButton1
+	call WriteString
+	call crlf
+
+	mov edx, offset hideButton
+	cmp helpIsDisplayed, 1
+	je CloseHelpPage
+	mov edx, offset helpButton2
+CloseHelpPage:
+	call WriteString
+	call crlf
+
+	mov edx, offset helpButton3
+	call WriteString
+	call crlf
+
+
 	mov esi, offset ShowArray
 	mov eax, red + (gray * 16)
 	call SetTextColor
@@ -963,6 +1005,45 @@ GetMouseClick ENDP
 ; Returns: 0 in eax for invalid. 1 for valid.
 ;-------------------------------------------
 ValidClicks proc
+	; Check to see if smiley was clicked
+	cmp YClick, STARTY
+	jne NotSmile
+	mov ax, STARTX + 9											
+	cmp BOARDSIZE_D, 9
+	je boardIsSmallS
+	add ax, 6
+boardIsSmallS:
+	cmp XClick, ax
+	jl NotSmile
+	inc ax
+	cmp XClick, ax
+	jg NotSmile
+
+	mov SmileReset, 1
+
+	mov eax, 0
+	ret
+
+NotSmile:
+	; Check to see if help was clicked
+	cmp YClick, 1
+	jl NotHelpOrSmile
+	cmp YClick, 3
+	jg NotHelpOrSmile
+	cmp XClick, 1
+	jl NotHelpOrSmile
+	cmp XClick, 8
+	jg NotHelpOrSmile
+	XOR helpIsDisplayed, 1
+	
+	call DisplayHelp
+
+	mov eax, 0
+	ret
+
+	
+NotHelpOrSmile:
+	; Check to see if board space was clicked
 	mov esi, offset Xcord		; array of vaild X cord 
 	mov edi, offset Ycord		; array of vaild Y cord 
 	mov ecx, BOARDSIZE_D   
@@ -1606,6 +1687,14 @@ SplashScreenClick ENDP
 ;***********************************************************************
 ;--------------------------------------------------------
 ; TEST DISPLAY!!!
+;
+; TestProc
+; This is for testing purposes only. It prints a copy of
+;  the board (without tiles) to the right of the real board.
+;  it is used for debugging purposes so you dont have to guess
+;  or actually play the game when testing.
+; Receives: nothing
+; Returns: nothing
 ;--------------------------------------------------------
 ;***********************************************************************
 TestProc PROC USES eax ecx edx
@@ -1765,6 +1854,8 @@ PrintScore ENDP
 ; nothing 
 ;--------------------------------------------------------
 ShowMines PROC
+	mov eax, red + (gray*16)
+	call SetTextColor
 	mov esi, offset MineLocations			; we are going to point at the fitst location in MineLocations array
 	          ;every byte in the array represents one position from 0 to 81
 	mov ecx, lengthof MineLocations			; get the number of mines that we have MineLocations array 
@@ -1792,7 +1883,194 @@ showM:
 	ret
 ShowMines ENDP
 
+;-----------------------------------
+; YouWinDisplay
+; Displays "You Win" in block letters
+; Receives: nothing
+; Returns: nothing
+;-----------------------------------
+YouWinDisplay PROC
+	mov eax, lightGreen
+	call SetTextColor
 
+	mov dx, 0
+	call GoToXY
 
+	mov edx, offset youWin1
+	call WriteString
+	call crlf
+	mov edx, offset youWin2
+	call WriteString
+	call crlf
+	mov edx, offset youWin3
+	call WriteString
+	call crlf
+	mov edx, offset youWin4
+	call WriteString
+	
+	mov dh, STARTY
+	mov dl, STARTX + 9											
+	cmp BOARDSIZE_D, 9
+	je boardIsSmallW
+	add dl, 6
+boardIsSmallW:
+	call GoToXY
+	mov eax, yellow + (gray*16)
+	call SetTextColor
+	mov eax, 'B'
+	call WriteChar
+
+	ret
+YouWinDisplay ENDP
+
+;-----------------------------------
+; YouLoseDisplay
+; Displays "You Lose" in block letters
+; Receives: nothing
+; Returns: nothing
+;-----------------------------------
+YouLoseDisplay PROC
+	mov eax, lightRed
+	call SetTextColor
+
+	mov dx, 0
+	call GoToXY
+
+	mov edx, offset youLose1
+	call WriteString
+	call crlf
+	mov edx, offset youLose2
+	call WriteString
+	call crlf
+	mov edx, offset youLose3
+	call WriteString
+	call crlf
+	mov edx, offset youLose4
+	call WriteString
+
+	mov dh, STARTY
+	mov dl, STARTX + 9											
+	cmp BOARDSIZE_D, 9
+	je boardIsSmallL
+	add dl, 6
+boardIsSmallL:
+	call GoToXY
+	mov eax, yellow + (gray*16)
+	call SetTextColor
+	mov eax, 'X'
+	call WriteChar
+	mov eax, '('
+	call WriteChar
+
+	ret
+YouLoseDisplay ENDP
+
+;----------------------------------
+; DisplayHelp
+; Displays or hides the help window
+; Receives: 0 or 1 in helpIsDisplayed
+; Returns: nothing
+;----------------------------------
+DisplayHelp PROC USES eax ebx ecx edx
+	mov eax, lightGray
+	call SetTextColor
+
+	mov dh, 1
+	mov dl, 64
+	call GoToXY
+	cmp helpIsDisplayed, 1
+	jne HideHelpPage
+
+	mov bx, dx
+	mov edx, offset helpInfo1
+	call WriteString
+	mov dx, bx
+	add dh, 2
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo2
+	call WriteString
+	mov dx, bx
+	inc dh
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo3
+	call WriteString
+	mov dx, bx
+	inc dh
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo4
+	call WriteString
+	mov dx, bx
+	inc dh
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo5
+	call WriteString
+	mov dx, bx
+	inc dh
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo52
+	call WriteString
+	mov dx, bx
+	inc dh
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo6
+	call WriteString
+	mov dx, bx
+	inc dh
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo7
+	call WriteString
+	mov dx, bx
+	inc dh
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo8
+	call WriteString
+	mov dx, bx
+	add dh, 2
+	mov dl, 64
+	call GoToXY
+	mov bx, dx
+	mov edx, offset helpInfo9
+	call WriteString
+
+	call DrawBoard
+
+	ret
+
+HideHelpPage:
+
+	mov eax, ' '
+	mov ecx, 12
+HelpOuterLoop:
+	push ecx
+	mov ecx, 56
+HelpInnerLoop:
+	call WriteChar
+	loop HelpInnerLoop
+	inc dh
+	mov dl, 64
+	call GoToXY
+	pop ecx
+	loop HelpOuterLoop
+
+	call DrawBoard
+
+	ret
+DisplayHelp ENDP
 
 END MAIN
