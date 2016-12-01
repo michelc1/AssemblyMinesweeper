@@ -99,6 +99,9 @@ mines = 10
 
 	splashScreenTimer dd 100	; The first time the game opens, the splash screen will move slow. After that it will be fast
 
+	strWin db "You win",0
+	strLoss db "You lost",0
+	winCount db 0
 .code
 main PROC
 	invoke SetConsoleTitle, OFFSET CMDTitle		; Sets the title of the console window
@@ -164,17 +167,23 @@ SkipFillBoard:
 
 	mov showClock, 1				; show clock
 
-MainLoop:
 	call DrawBoard
+MainLoop:
 	call PrintScore				; print current score
 								; Wait for mouse click. This is where the program will sit for most of the time it is running. Because of this, the GetMouseClick procedure also controls the clock.
 	call GetMouseClick			; Gets mouse click and puts the X-coord in XClick, and Y-coord YClick
 
 	call ValidClicks
 	
+	
+
 	cmp eax,0			; check if the user clicked a valid position
 	je	MainLoop		; if he didn't, then keep waiting
 	call ClearSpace	
+
+	call DrawBoard
+	call IsGameOver
+
 	cmp GameOver,1		; is the game over?
 	jne MainLoop         ; if not play game
 
@@ -208,6 +217,79 @@ playAgain:
 byebyeMain:
 	Invoke ExitProcess, 0
 main ENDP
+
+
+
+
+
+;-----------------------------
+; IsGameOver
+; Checks to see if the game is over
+;-----------------------------
+IsGameOver PROC uses eax ebx ecx edx edi esi
+	mov ebx, 0
+	mov esi, offset ShowArray
+	mov ecx, lengthof ShowArray
+	mov eax, 0
+	mov winCount, 0
+
+
+EndGameCheck:
+	mov bl, [esi]
+	cmp bl, 0FFh
+	je Loss
+	cmp bl, 0Fh
+	je WinCheck
+	cmp bl, 254
+	je WinCheck
+	jmp BotOfEndGameLoop
+
+WinCheck:
+	mov edi, offset MineLocations
+	push ecx
+	mov edx, esi
+	sub edx, offset showArray
+	mov ecx, lengthof MineLocations
+MineInLocationCheck:
+	mov bl, [edi]
+	cmp dl, bl		; check if a mine occupies the position
+	je MineUnder
+	inc edi
+	loop MineInLocationCheck
+
+	pop ecx			; take from the stack so the program doesn't crash
+	ret				; if a tile has not been cleared and does not have a mine under
+					; then continue the game
+
+MineUnder:
+	pop ecx			; take the ecx value from the stack
+
+BotOfEndGameLoop:
+	inc esi
+	loop EndGameCheck
+
+Win:
+	mov dh, 0
+	mov dl, 0
+	call GoToXY
+	mov edx, offset strWin
+	call WriteString
+	call Crlf
+	Invoke ExitProcess,0
+
+Loss:
+	mov dh, 0
+	mov dl, 0
+	call GoToXY
+	mov edx, offset strLoss
+	call WriteString
+	call Crlf
+	Invoke ExitProcess,0
+
+
+	ret
+IsGameOver ENDP
+
 
 ;----------------------------------
 ; initializeGame
